@@ -359,6 +359,60 @@ def add_metric(ldap_conn):
         return
 
 
+def modify_oxtrust_config(ldap_conn):
+    logger.info("Applying updates for oxTrust config (if any).")
+
+    # whether update should be executed
+    should_update = False
+    inumAppliance = manager.config.get("inumAppliance")
+
+    result = get_ldap_entry(
+        ldap_conn,
+        "ou=oxtrust,ou=configuration,inum={},ou=appliances,o=gluu".format(inumAppliance),
+    )
+    if not result:
+        logger.warn("Unable to find oxTrust config in LDAP.")
+        return
+
+    entry = result[0]
+
+    # oxtrust-config.json
+    conf = json.loads(entry["oxTrustConfApplication"][0])
+
+    rm_attrs = ["velocityLog"]
+    for attr in rm_attrs:
+        if attr not in conf:
+            continue
+        conf.pop(attr, None)
+        should_update = True
+
+    add_attrs = {
+        "loggingLevel": "INFO",
+    }
+    new_attrs = {k: v for k, v in add_attrs.iteritems() if k not in conf}
+
+    if new_attrs:
+        conf.update(new_attrs)
+        should_update = True
+
+    # if there's no update, bail the process
+    if not should_update:
+        return
+
+    logger.info("Updating oxTrust config in LDAP.")
+
+    conf = json.dumps(conf)
+    ox_rev = str(int(entry["oxRevision"][0]) + 1)
+    ldap_conn.modify(entry.entry_dn, {
+        "oxRevision": [(MODIFY_REPLACE, [ox_rev])],
+        "oxTrustConfApplication": [(MODIFY_REPLACE, [conf])],
+    })
+
+    if ldap_conn.result["description"] == "success":
+        logger.info("Updating oxTrust config in secrets backend.")
+        manager.secret.set("oxtrust_config_base64", generate_base64_contents(conf))
+
+
 def main():
     host, port = GLUU_LDAP_URL.split(":", 2)
     user = manager.config.get("ldap_binddn")
@@ -377,6 +431,7 @@ def main():
         modify_groups(conn)
         modify_oxauth_config(conn)
         modify_oxidp_config(conn)
+        modify_oxtrust_config(conn)
 
 
 if __name__ == "__main__":
