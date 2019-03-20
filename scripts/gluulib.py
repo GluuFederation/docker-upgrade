@@ -456,7 +456,12 @@ class VaultSecret(BaseSecret):
     def set(self, key, value):
         self._authenticate()
         val = {"value": value}
-        self.client.write("{}/{}".format(self.prefix, key), **val)
+
+        # hvac.v1.Client.write checks for status code 200,
+        # but Vault HTTP API returns 204 if request succeeded;
+        # hence we're using lower level of `hvac.v1.Client` API to set key-val
+        response = self.client._adapter.post('/v1/{0}/{1}'.format(self.prefix, key), json=val)
+        return response.status_code == 204
 
     def all(self):
         self._authenticate()
