@@ -2,12 +2,12 @@
 
 set -e
 
-GLUU_VERSION=3.1.5
+GLUU_VERSION=3.1.6
 IMAGE_NAME="gluufederation/upgrade"
 UNSTABLE_VERSION="dev"
 STABLE_VERSION=${STABLE_VERSION:-""}
 
-# force to use branch 3.1.5
+# force to use branch 3.1.6
 echo "[I] Switching to git branch ${GLUU_VERSION}"
 git checkout $GLUU_VERSION
 

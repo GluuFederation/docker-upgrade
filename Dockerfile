@@ -65,4 +65,5 @@ ENV GLUU_WAIT_SLEEP_DURATION 5
 
 RUN mkdir -p /etc/certs
 COPY scripts /opt/scripts
-CMD ["python", "/opt/scripts/entrypoint.py"]
+ENTRYPOINT ["python", "/opt/scripts/entrypoint.py"]
+CMD ["--help"]
