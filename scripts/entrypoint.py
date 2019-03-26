@@ -9,7 +9,7 @@ from utils import decrypt_text
 from utils import get_ldap_conn
 from v315 import ThreeOneFive
 from v316 import ThreeOneSix
-# from wait_for import wait_for
+from wait_for import wait_for
 
 logger = logging.getLogger("upgrade")
 logger.setLevel(logging.INFO)
@@ -53,8 +53,6 @@ def main():
         logger.error("Upgrading from {} to {} is not allowed".format(args.source, args.target))
         sys.exit(1)
 
-    logger.info("Upgrading data")
-
     # get all upgrader classes required by the process
     steps = itertools.islice(
         SUPPORTED_VERSIONS,
@@ -64,12 +62,14 @@ def main():
     upgrader_classes = [UPGRADER_CLASSES.get(step) for step in steps]
 
     manager = get_manager()
-    # wait_for(manager, deps=["config", "secret", "ldap"])
+    wait_for(manager, deps=["config", "secret", "ldap"])
 
     host, port = GLUU_LDAP_URL.split(":", 2)
     user = manager.config.get("ldap_binddn")
     passwd = decrypt_text(manager.secret.get("encoded_ox_ldap_pw"),
                           manager.secret.get("encoded_salt"))
+
+    logger.info("Upgrading data")
 
     with get_ldap_conn(host, port, user, passwd) as conn:
         prev_version = args.source
