@@ -2,6 +2,12 @@
 
 Here you can see an overview of changes between each release.
 
+## Version 3.1.5_03
+
+Released on April 9th, 2019.
+
+* Added license info on container startup.
+
 ## Version 3.1.5_02
 
 Released on March 27th, 2019.
