@@ -8,6 +8,14 @@ LABEL maintainer="Gluu Inc. <support@gluu.org>"
 RUN apk update && apk add --no-cache \
     py-pip
 
+# ====
+# Tini
+# ====
+
+ENV TINI_VERSION v0.18.0
+RUN wget -q https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-static -O /usr/bin/tini \
+    && chmod +x /usr/bin/tini
+
 # ======
 # Python
 # ======
@@ -72,5 +80,6 @@ ENV GLUU_WAIT_SLEEP_DURATION 5
 
 RUN mkdir -p /etc/certs
 COPY scripts /opt/scripts
-ENTRYPOINT ["python", "/opt/scripts/entrypoint.py"]
-CMD ["--help"]
+RUN chmod +x /opt/scripts/entrypoint.sh
+ENTRYPOINT ["tini", "-g", "--"]
+CMD ["/opt/scripts/entrypoint.sh"]
