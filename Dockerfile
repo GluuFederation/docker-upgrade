@@ -81,5 +81,4 @@ ENV GLUU_WAIT_SLEEP_DURATION 5
 RUN mkdir -p /etc/certs
 COPY scripts /opt/scripts
 RUN chmod +x /opt/scripts/entrypoint.sh
-ENTRYPOINT ["tini", "-g", "--"]
-CMD ["/opt/scripts/entrypoint.sh"]
+ENTRYPOINT ["tini", "-g", "--", "/opt/scripts/entrypoint.sh"]
