@@ -1,4 +1,4 @@
-FROM alpine
+FROM alpine:3.9
 
 LABEL maintainer="Gluu Inc. <support@gluu.org>"
 
