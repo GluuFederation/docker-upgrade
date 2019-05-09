@@ -7,10 +7,6 @@ IMAGE_NAME="gluufederation/upgrade"
 UNSTABLE_VERSION="dev"
 STABLE_VERSION=${STABLE_VERSION:-""}
 
-# force to use branch 3.1.5
-echo "[I] Switching to git branch ${GLUU_VERSION}"
-git checkout $GLUU_VERSION
-
 echo "[I] Building Docker image ${IMAGE_NAME}:${GLUU_VERSION}_${UNSTABLE_VERSION}"
 docker build --rm --force-rm -t ${IMAGE_NAME}:${GLUU_VERSION}_${UNSTABLE_VERSION} .
 
