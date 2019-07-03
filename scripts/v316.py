@@ -1,10 +1,3 @@
-# TODO:
-#
-# Changes in `oxauth-config.json`
-#
-# - add `"corsEnabled": true` in `corsConfigurationFilters`
-# - add `"PS256", "PS384", "PS512"` in `userInfoSigningAlgValuesSupported`, `idTokenSigningAlgValuesSupported`, `requestObjectSigningAlgValuesSupported`, `tokenEndpointAuthSigningAlgValuesSupported`
-
 import json
 import logging
 
@@ -118,6 +111,11 @@ class ThreeOneSix(object):
         # enable CORS by default
         if "corsEnabled" not in dynamic_conf["corsConfigurationFilters"][0]:
             dynamic_conf["corsConfigurationFilters"][0]["corsEnabled"] = True
+            should_update = True
+
+        # add shareSubjectIdBetweenClientsWithSameSectorId
+        if "shareSubjectIdBetweenClientsWithSameSectorId" not in dynamic_conf:
+            dynamic_conf["shareSubjectIdBetweenClientsWithSameSectorId"] = True
             should_update = True
 
         # if there's no update, bail the process
