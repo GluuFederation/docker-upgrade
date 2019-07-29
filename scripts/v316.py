@@ -2,22 +2,20 @@ import json
 import logging
 
 from ldap3 import MODIFY_REPLACE
+from pygluu.containerlib.utils import generate_base64_contents
 
-from utils import get_ldap_entry
-from utils import generate_base64_contents
+from backends import get_ldap_entry
+from backends import LDAPBackend
+from settings import LOGGING_CONFIG
 
+logging.config.dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger("upgrade_3.1.6")
-logger.setLevel(logging.INFO)
-ch = logging.StreamHandler()
-fmt = logging.Formatter('%(levelname)s - %(asctime)s - %(message)s')
-ch.setFormatter(fmt)
-logger.addHandler(ch)
 
 
-class ThreeOneSix(object):
-    def __init__(self, manager, ldap_conn):
+class Upgrade316(object):
+    def __init__(self, manager):
+        self.ldap_conn = LDAPBackend(manager)
         self.manager = manager
-        self.ldap_conn = ldap_conn
         self.version = "3.1.6"
 
     def modify_clients(self):

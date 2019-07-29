@@ -1,41 +1,41 @@
 import argparse
 import itertools
 import logging
-import os
+import logging.config
+# import os
 import sys
 
-from gluulib import get_manager
-from utils import decrypt_text
-from utils import get_ldap_conn
-from v315 import ThreeOneFive
-from v316 import ThreeOneSix
-from wait_for import wait_for
+from pygluu.containerlib import get_manager
+from pygluu.containerlib import wait_for
+# from pygluu.containerlib.utils import decode_text
 
-logger = logging.getLogger("upgrade")
-logger.setLevel(logging.INFO)
-ch = logging.StreamHandler()
-fmt = logging.Formatter('%(levelname)s - %(asctime)s - %(message)s')
-ch.setFormatter(fmt)
-logger.addHandler(ch)
+# from backends import get_ldap_conn
+from settings import LOGGING_CONFIG
+from v315 import Upgrade315
+from v316 import Upgrade316
+# from v400 import Upgrade400
+
+logging.config.dictConfig(LOGGING_CONFIG)
+logger = logging.getLogger("entrypoint")
 
 SUPPORTED_VERSIONS = [
     "3.1.4",
     "3.1.5",
     "3.1.6",
+    # "4.0.0",
 ]
 
 # current version is the latest supported version
 CURRENT_VERSION = SUPPORTED_VERSIONS[-1]
 
 UPGRADER_CLASSES = {
-    "3.1.5": ThreeOneFive,
-    "3.1.6": ThreeOneSix,
+    "3.1.5": Upgrade315,
+    "3.1.6": Upgrade316,
+    # "4.0.0": Upgrade400,
 }
 
 
 def main():
-    GLUU_LDAP_URL = os.environ.get("GLUU_LDAP_URL", "localhost:1636")
-
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", help="Source version")
     parser.add_argument("--target", help="Target version")
@@ -64,23 +64,17 @@ def main():
     manager = get_manager()
     wait_for(manager, deps=["config", "secret", "ldap"])
 
-    host, port = GLUU_LDAP_URL.split(":", 2)
-    user = manager.config.get("ldap_binddn")
-    passwd = decrypt_text(manager.secret.get("encoded_ox_ldap_pw"),
-                          manager.secret.get("encoded_salt"))
-
     logger.info("Upgrading data")
 
-    with get_ldap_conn(host, port, user, passwd) as conn:
-        prev_version = args.source
+    prev_version = args.source
 
-        for step, upgrader_class in enumerate(upgrader_classes):
-            upgrader = upgrader_class(manager, conn)
-            logger.info("Step {}: upgrading {} to {}".format(step + 1, prev_version, upgrader.version))
-            if not upgrader.run_upgrade():
-                logger.warn("Unable to upgrade version from {} to {}".format(prev_version, upgrader.version))
-                return
-            prev_version = upgrader.version
+    for step, upgrader_class in enumerate(upgrader_classes):
+        upgrader = upgrader_class(manager)
+        logger.info("Step {}: upgrading {} to {}".format(step + 1, prev_version, upgrader.version))
+        if not upgrader.run_upgrade():
+            logger.warn("Unable to upgrade version from {} to {}".format(prev_version, upgrader.version))
+            return
+        prev_version = upgrader.version
 
 
 if __name__ == "__main__":

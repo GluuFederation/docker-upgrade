@@ -1,6 +1,1 @@
-python-consul==1.0.1
-ldap3==2.3
-pydes==2.0.1
-kubernetes==6.0.0
-hvac==0.7.0
-urllib3==1.24.2
+-e git+https://github.com/GluuFederation/pygluu-containerlib@c3131f3e99bacb5110727ad0b79807aba8ffa617#egg=pygluu-containerlib

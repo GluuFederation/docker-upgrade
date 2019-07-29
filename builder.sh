@@ -2,7 +2,7 @@
 
 set -e
 
-GLUU_VERSION=3.1.6
+GLUU_VERSION=4.0.0
 IMAGE_NAME="gluufederation/upgrade"
 UNSTABLE_VERSION="dev"
 STABLE_VERSION=${STABLE_VERSION:-""}
