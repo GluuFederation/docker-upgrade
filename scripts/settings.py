@@ -24,6 +24,16 @@ LOGGING_CONFIG = {
             "level": "INFO",
             "propagate": False,
         },
+        "v315": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "v316": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
     },
     "root": {
         "level": "INFO",

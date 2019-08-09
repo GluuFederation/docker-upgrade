@@ -2,14 +2,11 @@ import argparse
 import itertools
 import logging
 import logging.config
-# import os
 import sys
 
 from pygluu.containerlib import get_manager
 from pygluu.containerlib import wait_for
-# from pygluu.containerlib.utils import decode_text
 
-# from backends import get_ldap_conn
 from settings import LOGGING_CONFIG
 from v315 import Upgrade315
 from v316 import Upgrade316
@@ -62,7 +59,7 @@ def main():
     upgrader_classes = [UPGRADER_CLASSES.get(step) for step in steps]
 
     manager = get_manager()
-    wait_for(manager, deps=["config", "secret", "ldap"])
+    wait_for(manager, deps=["config", "secret"])
 
     logger.info("Upgrading data")
 

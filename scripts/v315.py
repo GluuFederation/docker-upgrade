@@ -5,20 +5,16 @@ import logging.config
 import time
 import uuid
 
-from ldap3 import MODIFY_REPLACE
 from pygluu.containerlib.utils import generate_base64_contents
 
-from backends import get_ldap_entry
 from backends import LDAPBackend
-from settings import LOGGING_CONFIG
 
-logging.config.dictConfig(LOGGING_CONFIG)
-logger = logging.getLogger("upgrade_3.1.5")
+logger = logging.getLogger("v315")
 
 
 class Upgrade315(object):
     def __init__(self, manager):
-        self.ldap_conn = LDAPBackend(manager)
+        self.backend = LDAPBackend(manager)
         self.manager = manager
         self.version = "3.1.5"
 
@@ -30,8 +26,7 @@ class Upgrade315(object):
         fido_folder = self.manager.config.get("fido2ConfigFolder")
         inumAppliance = self.manager.config.get("inumAppliance")
 
-        result = get_ldap_entry(
-            self.ldap_conn,
+        result = self.backend.get_entry(
             "ou=oxauth,ou=configuration,inum={},ou=appliances,o=gluu".format(inumAppliance),
         )
         if not result:
@@ -130,14 +125,17 @@ class Upgrade315(object):
         static_conf = json.dumps(static_conf)
         errors_conf = json.dumps(errors_conf)
         ox_rev = str(int(entry["oxRevision"][0]) + 1)
-        self.ldap_conn.modify(entry.entry_dn, {
-            "oxRevision": [(MODIFY_REPLACE, [ox_rev])],
-            "oxAuthConfDynamic": [(MODIFY_REPLACE, [dynamic_conf])],
-            "oxAuthConfStatic": [(MODIFY_REPLACE, [static_conf])],
-            "oxAuthConfErrors": [(MODIFY_REPLACE, [errors_conf])]
-        })
+        ok, _ = self.backend.modify_entry(
+            entry.entry_dn,
+            {
+                "oxRevision": [ox_rev],
+                "oxAuthConfDynamic": [dynamic_conf],
+                "oxAuthConfStatic": [static_conf],
+                "oxAuthConfErrors": [errors_conf]
+            },
+        )
 
-        if self.ldap_conn.result["description"] == "success":
+        if ok:
             logger.info("Updating oxAuth config in secrets backend.")
             self.manager.secret.set("oxauth_config_base64", generate_base64_contents(dynamic_conf))
             self.manager.config.set("oxauth_static_conf_base64", generate_base64_contents(static_conf))
@@ -151,8 +149,7 @@ class Upgrade315(object):
         inumAppliance = self.manager.config.get("inumAppliance")
         redirect_uri = "https://{}/idp/profile/Logout".format(hostname)
 
-        result = get_ldap_entry(
-            self.ldap_conn,
+        result = self.backend.get_entry(
             "ou=oxidp,ou=configuration,inum={},ou=appliances,o=gluu".format(inumAppliance),
         )
         if not result:
@@ -173,12 +170,12 @@ class Upgrade315(object):
         logger.info("Updating oxShibboleth config in LDAP.")
         conf = json.dumps(conf)
         ox_rev = str(int(entry["oxRevision"][0]) + 1)
-        self.ldap_conn.modify(entry.entry_dn, {
-            "oxRevision": [(MODIFY_REPLACE, [ox_rev])],
-            "oxConfApplication": [(MODIFY_REPLACE, [conf])],
-        })
+        ok, _ = self.backend.modify_entry(
+            entry.entry_dn,
+            {"oxRevision": [ox_rev], "oxConfApplication": [conf]}
+        )
 
-        if self.ldap_conn.result["description"] == "success":
+        if ok:
             logger.info("Updating oxShibboleth config in secrets backend.")
             self.manager.secret.set("oxidp_config_base64", generate_base64_contents(conf))
 
@@ -190,8 +187,7 @@ class Upgrade315(object):
         hostname = self.manager.config.get("hostname")
 
         # change oxTrust app
-        result = get_ldap_entry(
-            self.ldap_conn,
+        result = self.backend.get_entry(
             "inum={},ou=clients,o={},o=gluu".format(oxauth_client_id, inumOrg),
         )
         if not result:
@@ -204,9 +200,10 @@ class Upgrade315(object):
             return
 
         logger.info("Updating clients in LDAP.")
-        self.ldap_conn.modify(entry.entry_dn, {
-            "oxAuthLogoutURI": [(MODIFY_REPLACE, ["https://{}/identity/logout".format(hostname)])]
-        })
+        self.backend.modify_entry(
+            entry.entry_dn,
+            {"oxAuthLogoutURI": ["https://{}/identity/logout".format(hostname)]},
+        )
 
     def modify_groups(self):
         logger.info("Applying updates for groups (if any).")
@@ -214,8 +211,7 @@ class Upgrade315(object):
         inumOrg = self.manager.config.get("inumOrg")
 
         # change admin group
-        result = get_ldap_entry(
-            self.ldap_conn,
+        result = self.backend.get_entry(
             "inum={0}!0003!60B7,ou=groups,o={0},o=gluu".format(inumOrg),
         )
         if not result:
@@ -229,7 +225,7 @@ class Upgrade315(object):
             "gluuGroupVisibility": ["private"],
         }
         new_attrs = {
-            k: [(MODIFY_REPLACE, v)] for k, v in add_attrs.iteritems()
+            k: v for k, v in add_attrs.iteritems()
             if k not in entry.entry_attributes_as_dict
         }
 
@@ -237,7 +233,7 @@ class Upgrade315(object):
             return
 
         logger.info("Updating groups in LDAP.")
-        self.ldap_conn.modify(entry.entry_dn, new_attrs)
+        self.backend.modify_entry(entry.entry_dn, new_attrs)
 
     def add_metric(self):
         logger.info("Applying updates for metric (if any).")
@@ -257,26 +253,24 @@ class Upgrade315(object):
             }
         }
 
-        if not get_ldap_entry(self.ldap_conn, metric["dn"]):
-            self.ldap_conn.add(metric["dn"], attributes=metric["attrs"])
-            result = self.ldap_conn.result
+        if not self.backend.get_entry(metric["dn"]):
+            ok, msg = self.backend.add_entry(metric["dn"], metric["attrs"])
 
-            if result["description"] != "success":
+            if not ok:
                 logger.warn("Unable to add metric; reason={}; "
-                            "please try again.".format(result["message"]))
+                            "please try again.".format(msg))
                 return
 
             # if this is the first time metric entry is created,
             # give it delay to allow changes
             time.sleep(5)
 
-        if not get_ldap_entry(self.ldap_conn, stats["dn"]):
-            self.ldap_conn.add(stats["dn"], attributes=stats["attrs"])
-            result = self.ldap_conn.result
+        if not self.backend.get_entry(stats["dn"]):
+            ok, msg = self.backend.add_entry(stats["dn"], stats["attrs"])
 
-            if result["description"] != "success":
+            if not ok:
                 logger.warn("Unable to add statistic; reason={}; "
-                            "please try again.".format(result["message"]))
+                            "please try again.".format(msg))
             return
 
     def modify_oxtrust_config(self):
@@ -286,8 +280,7 @@ class Upgrade315(object):
         should_update = False
         inumAppliance = self.manager.config.get("inumAppliance")
 
-        result = get_ldap_entry(
-            self.ldap_conn,
+        result = self.backend.get_entry(
             "ou=oxtrust,ou=configuration,inum={},ou=appliances,o=gluu".format(inumAppliance),
         )
         if not result:
@@ -323,12 +316,12 @@ class Upgrade315(object):
 
         conf = json.dumps(conf)
         ox_rev = str(int(entry["oxRevision"][0]) + 1)
-        self.ldap_conn.modify(entry.entry_dn, {
-            "oxRevision": [(MODIFY_REPLACE, [ox_rev])],
-            "oxTrustConfApplication": [(MODIFY_REPLACE, [conf])],
-        })
+        ok, _ = self.backend.modify_entry(
+            entry.entry_dn,
+            {"oxRevision": [ox_rev], "oxTrustConfApplication": [conf]},
+        )
 
-        if self.ldap_conn.result["description"] == "success":
+        if ok:
             logger.info("Updating oxTrust config in secrets backend.")
             self.manager.secret.set("oxtrust_config_base64",
                                     generate_base64_contents(conf))
