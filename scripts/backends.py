@@ -5,6 +5,9 @@ from ldap3 import Connection
 from ldap3 import MODIFY_REPLACE
 from ldap3 import Server
 from ldap3 import SUBTREE
+from ldap3.utils.dn import safe_dn
+from ldap3.utils.dn import to_dn
+
 from pygluu.containerlib.utils import decode_text
 
 
@@ -87,3 +90,10 @@ class CouchbaseBackend(object):
 
     def all(self):
         pass
+
+
+#: shortcut to ldap3.utils.dn:to_dn
+explode_dn = to_dn
+
+#: shortcut to ldap3.utils.dn:safe_dn
+implode_dn = safe_dn
