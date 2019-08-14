@@ -4,6 +4,7 @@ from ldap3 import BASE
 from ldap3 import Connection
 from ldap3 import MODIFY_REPLACE
 from ldap3 import Server
+from ldap3 import SUBTREE
 from pygluu.containerlib.utils import decode_text
 
 
@@ -20,8 +21,9 @@ class LDAPBackend(object):
         self.conn = Connection(server, user, passwd)
         self.manager = manager
 
-    def get_entry(self, key, filter_="(objectClass=*)", attrs=None):
+    def get_entry(self, key, filter_="", attrs=None):
         attrs = None or ["*"]
+        filter_ = filter_ or "(objectClass=*)"
 
         with self.conn as conn:
             conn.search(
@@ -52,10 +54,36 @@ class LDAPBackend(object):
             conn.add(key, attributes=attrs)
             return bool(conn.result["description"] == "success"), conn.result["message"]
 
+    def all(self, key=""):
+        key = key or "o=gluu"
+
+        with self.conn as conn:
+            result_iter = conn.extend.standard.paged_search(
+                search_base=key,
+                search_filter="(objectClass=*)",
+                search_scope=SUBTREE,
+                attributes="*",
+                generator=True,
+            )
+            # we cannot return the original generator since operating on
+            # the generator needs an established connection to LDAP
+            # (or it will raise socket error); hence we create another generator
+            for e in result_iter:
+                yield e
+
 
 class CouchbaseBackend(object):
-    def __init__(self, host, user, password):
+    def __init__(self, manager):
         pass
 
-    def get_entry(self):
+    def get_entry(self, key, filter_="", attrs=None):
+        pass
+
+    def modify_entry(self, key, attrs=None):
+        pass
+
+    def add_entry(self, key, attrs=None):
+        pass
+
+    def all(self):
         pass

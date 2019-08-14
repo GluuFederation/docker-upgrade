@@ -10,7 +10,7 @@ from pygluu.containerlib import wait_for
 from settings import LOGGING_CONFIG
 from v315 import Upgrade315
 from v316 import Upgrade316
-# from v400 import Upgrade400
+from v400 import Upgrade400
 
 logging.config.dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger("entrypoint")
@@ -19,7 +19,7 @@ SUPPORTED_VERSIONS = [
     "3.1.4",
     "3.1.5",
     "3.1.6",
-    # "4.0.0",
+    "4.0.0",
 ]
 
 # current version is the latest supported version
@@ -28,7 +28,7 @@ CURRENT_VERSION = SUPPORTED_VERSIONS[-1]
 UPGRADER_CLASSES = {
     "3.1.5": Upgrade315,
     "3.1.6": Upgrade316,
-    # "4.0.0": Upgrade400,
+    "4.0.0": Upgrade400,
 }
 
 
