@@ -89,4 +89,5 @@ ENV GLUU_WAIT_MAX_TIME=300 \
 
 RUN mkdir -p /etc/certs /app
 COPY scripts /app/scripts
+RUN chmod +x /app/scripts/entrypoint.sh
 ENTRYPOINT ["tini", "-g", "--", "sh", "/app/scripts/entrypoint.sh"]
