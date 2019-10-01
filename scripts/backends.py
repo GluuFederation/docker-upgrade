@@ -57,13 +57,27 @@ class LDAPBackend(object):
             conn.add(key, attributes=attrs)
             return bool(conn.result["description"] == "success"), conn.result["message"]
 
-    def all(self, key=""):
+    def delete_entry(self, key):
+        with self.conn as conn:
+            conn.delete(key)
+            return bool(conn.result["description"] == "success"), conn.result["message"]
+
+    def upsert_entry(self, key, attrs=None):
+        attrs = attrs or {}
+
+        saved, err = self.modify_entry(key, attrs)
+        if not saved:
+            saved, err = self.add_entry(key, attrs)
+        return saved, err
+
+    def all(self, key="", search_filter=""):
         key = key or "o=gluu"
+        search_filter = search_filter or "(objectClass=*)"
 
         with self.conn as conn:
             result_iter = conn.extend.standard.paged_search(
                 search_base=key,
-                search_filter="(objectClass=*)",
+                search_filter=search_filter,
                 search_scope=SUBTREE,
                 attributes="*",
                 generator=True,
