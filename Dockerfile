@@ -1,4 +1,4 @@
-FROM alpine:3.9
+FROM openjdk:8-jre-alpine3.9
 
 LABEL maintainer="Gluu Inc. <support@gluu.org>"
 
@@ -9,6 +9,17 @@ LABEL maintainer="Gluu Inc. <support@gluu.org>"
 RUN apk update \
     && apk add --no-cache py-pip \
     && apk add --no-cache --virtual build-deps git
+
+# =============
+# oxAuth client
+# =============
+
+# JAR files required to generate OpenID Connect keys
+ENV GLUU_VERSION=4.0.rc2 \
+    GLUU_BUILD_DATE=2019-09-25
+
+RUN mkdir -p /app/javalibs \
+    && wget -q https://ox.gluu.org/maven/org/gluu/oxauth-client/${GLUU_VERSION}/oxauth-client-${GLUU_VERSION}-jar-with-dependencies.jar -O /app/javalibs/oxauth-client.jar
 
 # ====
 # Tini
