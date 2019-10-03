@@ -12,7 +12,7 @@ from pygluu.containerlib.utils import exec_cmd
 from backends import LDAPBackend
 from modifiers import SiteModifier
 from modifiers import MetricModifier
-from modifiers import GluuModifier
+from modifiers import ModManager
 
 SIG_KEYS = "RS256 RS384 RS512 ES256 ES384 ES512"
 ENC_KEYS = "RSA_OAEP RSA1_5"
@@ -94,106 +94,31 @@ class Upgrade400(object):
         try:
             logger.info("Processing upgrade for o=gluu backend")
             parser = LDIFParser(open(file_))
-            mod = GluuModifier(self.manager)
+            mod = ModManager(self.manager)
 
             for dn, entry in parser.parse():
                 dn, entry = mod.process(dn, entry)
                 if not dn:
                     continue
 
-                modified, err = self.backend.upsert_entry(dn, entry)
-                if not modified:
-                    logger.warn(err)
+                # modified, err = self.backend.upsert_entry(dn, entry)
+                # if not modified:
+                #     logger.warn(err)
 
-            # the following entries are needed by Gluu Server v4
-            self.add_misc_entries()
+            # # the following entries are needed by Gluu Server v4
+            # self.add_extra_entries()
         except IOError as exc:
             logger.warning("Unable to process upgrade for o=gluu backend; "
                            "reason={}".format(exc))
 
-    def add_misc_entries(self):
-        data = [
-            # taken from v4 base.ldif
-            {
-                "dn": "ou=pct,ou=uma,o=gluu",
-                "attrs": {
-                    "objectClass": ["top", "organizationalUnit"],
-                    "ou": ["pct"],
-                },
-            },
-            {
-                "dn": "ou=resetPasswordRequests,o=gluu",
-                "attrs": {
-                    "objectClass": ["top", "organizationalUnit"],
-                    "ou": ["resetPasswordRequests"],
-                },
-            },
-
-            {
-                "dn": "ou=tokens,o=gluu",
-                "attrs": {
-                    "objectClass": ["top", "organizationalUnit"],
-                    "ou": ["tokens"],
-                },
-            },
-            {
-                "dn": "ou=authorizations,o=gluu",
-                "attrs": {
-                    "objectClass": ["top", "organizationalUnit"],
-                    "ou": ["authorizations"],
-                },
-            },
-            {
-                "dn": "ou=samlAcrs,o=gluu",
-                "attrs": {
-                    "objectClass": ["top", "organizationalunit"],
-                    "ou": ["samlAcrs"],
-                },
-            },
-            {
-                "dn": "ou=metric,o=gluu",
-                "attrs": {
-                    "objectClass": ["top", "organizationalunit"],
-                    "ou": ["metric"],
-                },
-            },
-
-            # taken from v4 oxidp.ldif
-            {
-                "dn": "inum=F3FB,ou=samlAcrs,o=gluu",
-                "attrs": {
-                    "objectClass": ["top", "samlAcr"],
-                    "parent": ["shibboleth.SAML2AuthnContextClassRef"],
-                    "classRef": ["urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport"],
-                    "inum": ["F3FB"],
-                },
-            },
-            {
-                "dn": "inum=B227,ou=samlAcrs,o=gluu",
-                "attrs": {
-                    "objectClass": ["top", "samlAcr"],
-                    "parent": ["shibboleth.SAML2AuthnContextClassRef"],
-                    "classRef": ["urn:oasis:names:tc:SAML:2.0:ac:classes:InternetProtocol"],
-                    "inum": ["B227"],
-                },
-            },
-            {
-                "dn": "inum=FF64,ou=samlAcrs,o=gluu",
-                "attrs": {
-                    "objectClass": ["top", "samlAcr"],
-                    "parent": ["shibboleth.SAML2AuthnContextClassRef"],
-                    "classRef": ["urn:oasis:names:tc:SAML:2.0:ac:classes:Password"],
-                    "inum": ["FF64"],
-                },
-            },
-        ]
-
-        for datum in data:
-            entry = self.backend.get_entry(datum["dn"])
+    def add_extra_entries(self):
+        parser = LDIFParser(open("/app/templates/v4/extra_entries.ldif"))
+        for dn, entry in parser.parse():
+            entry = self.backend.get_entry(dn)
             if entry:
                 continue
 
-            _, err = self.backend.add_entry(datum["dn"], datum["attrs"])
+            _, err = self.backend.add_entry(dn, entry)
             if err:
                 logger.warn(err)
 
@@ -288,9 +213,31 @@ class Upgrade400(object):
                 encode=True,
             )
 
+    def prepare_context(self):
+        if not self.manager.config.get("admin_inum"):
+            self.manager.config.set("admin_inum", "{}".format(uuid.uuid4()))
+
+        # create or modify client IDs
+        for key in ["oxauth_client_id",
+                    "idp_client_id",
+                    "scim_rp_client_id",
+                    "scim_rs_client_id",
+                    "passport_resource_id",
+                    "passport_rp_client_id",
+                    "passport_rs_client_id",
+                    "passport_rp_ii_client_id",
+                    "oxtrust_resource_server_client_id",
+                    "oxtrust_resource_id",
+                    "gluu_radius_client_id",
+                    "ox_radius_client_id"]:
+
+            if not self.manager.config.get(key):
+                self.manager.config.set(key, "0008-{}".format(uuid.uuid4()))
+
     def run_upgrade(self):
-        self.api_rs_context()
-        self.api_rp_context()
+        # self.api_rs_context()
+        # self.api_rp_context()
+        self.prepare_context()
 
         # self.modify_site()
         # self.modify_metric()

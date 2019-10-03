@@ -1,53 +1,29 @@
+import abc
 import itertools
 import json
 import re
+
 import six
 
 from backends import implode_dn
 from backends import explode_dn
 
-# INUM_REGEXES = [
-#     re.compile(r'(!00[0-9a-fA-F][0-9a-fA-F]!)'),
-#     re.compile(r'(![0-9a-fA-F]{4}\.)'),
-#     re.compile(r'([0-9a-fA-F]{4}\.[0-9a-fA-F]{4})'),
-#     re.compile(r'(00[0-9a-fA-F][0-9a-fA-F]-)'),
-#     re.compile(r',\w+=,'),
-# ]
-
-
-# "scim.ldif",
-# "oxidp.ldif",
-# "oxtrust_api.ldif",
-# "passport.ldif",
-# "oxpassport-config.ldif",
-# "gluu_radius_base.ldif",
-# "gluu_radius_server.ldif",
-# "clients.ldif",
-# "oxtrust_api_clients.ldif",
-# "scim_clients.ldif",
-# "o_metric.ldif",
-# "gluu_radius_clients.ldif",
-# "passport_clients.ldif",
-# "scripts_casa.ldif",
-
 
 class Modifier(object):
+    __metaclass__ = abc.ABCMeta
+
     def __init__(self, manager):
         self.manager = manager
-        self._inum_org = ""
-        self._inum_appliance = ""
+        self.inum_org = self.manager.config.get("inumOrg")
+        self.inum_appliance = self.manager.config.get("inumAppliance")
 
-    @property
-    def inum_org(self):
-        if not self._inum_org:
-            self._inum_org = self.manager.config.get("inumOrg")
-        return self._inum_org
+    @abc.abstractmethod
+    def should_process(self, dn, entry):
+        raise NotImplementedError
 
-    @property
-    def inum_appliance(self):
-        if not self._inum_appliance:
-            self._inum_appliance = self.manager.config.get("inumAppliance")
-        return self._inum_appliance
+    @abc.abstractmethod
+    def process(self, dn, entry):
+        raise NotImplementedError
 
     def transform_dn(self, dn):
         dns = explode_dn(dn)
@@ -85,15 +61,9 @@ class Modifier(object):
             tmps = tmps.replace(x, ',')
         return tmps
 
-    def should_process(self, dn, entry):
-        raise NotImplementedError
-
-    def process(self, dn, entry):
-        raise NotImplementedError
-
 
 class SiteModifier(Modifier):
-    def should_process(dn, entry):
+    def should_process(self, dn, entry):
         return dn.endswith("o=site")
 
     def process(self, dn, entry):
@@ -105,7 +75,7 @@ class SiteModifier(Modifier):
 
 
 class MetricModifier(Modifier):
-    def should_process(dn, entry):
+    def should_process(self, dn, entry):
         return dn.endswith("o=metric")
 
     def process(self, dn, entry):
@@ -113,62 +83,12 @@ class MetricModifier(Modifier):
         return dn, entry
 
 
-class GluuModifier(object):
-    def __init__(self, manager):
-        self.manager = manager
-        self.modifiers = [
-            _BaseModifier(self.manager),
-            _AttributeModifier(self.manager),
-            _ScopeModifier(self.manager),
-            # _ScriptModifier(self.manager),
-            _ConfigurationModifier(self.manager),
-            _OxidpModifier(self.manager),
-        ]
-
-    def process(self, dn, entry):
-        for mod in self.modifiers:
-            if not mod.should_process(dn, entry):
-                continue
-            return mod.process(dn, entry)
-
-        # no modification applied
-        return "", None
-
-
-class _BaseModifier(Modifier):
-    """Modify entries base on base.ldif.
+class BaseModifier(Modifier):
+    """Modify root entry of ``o=gluu``.
     """
 
     def should_process(self, dn, entry):
-        dns = map(
-            lambda f: f % {"inumOrg": self.inum_org},
-            [
-                # v4 doesn't need these entries
-                # "o=gluu",
-                # "ou=appliances,o=gluu",
-                # "ou=hosts,o=%(inumOrg)s,o=gluu",
-                # "ou=session,o=%(inumOrg)s,o=gluu",
-                # "ou=scopes,ou=uma,o=%(inumOrg)s,o=gluu",
-                "o=%(inumOrg)s,o=gluu",
-                "ou=people,o=%(inumOrg)s,o=gluu",
-                "ou=groups,o=%(inumOrg)s,o=gluu",
-                "ou=attributes,o=%(inumOrg)s,o=gluu",
-                "ou=scopes,o=%(inumOrg)s,o=gluu",
-                "ou=clients,o=%(inumOrg)s,o=gluu",
-                "ou=scripts,o=%(inumOrg)s,o=gluu",
-                "ou=uma,o=%(inumOrg)s,o=gluu",
-                "ou=resources,ou=uma,o=%(inumOrg)s,o=gluu",
-                "ou=push,o=%(inumOrg)s,o=gluu",
-                "ou=application,ou=push,o=%(inumOrg)s,o=gluu",
-                "ou=device,ou=push,o=%(inumOrg)s,o=gluu",
-                "ou=u2f,o=%(inumOrg)s,o=gluu",
-                "ou=registration_requests,ou=u2f,o=%(inumOrg)s,o=gluu",
-                "ou=authentication_requests,ou=u2f,o=%(inumOrg)s,o=gluu",
-                "ou=registered_devices,ou=u2f,o=%(inumOrg)s,o=gluu",
-                "ou=sector_identifiers,o=%(inumOrg)s,o=gluu",
-            ]
-        )
-        return bool(dn in dns)
+        return dn == "o={},o=gluu".format(self.inum_org)
 
     def process(self, dn, entry):
         dn = self.transform_dn(dn)
@@ -184,36 +104,44 @@ class _BaseModifier(Modifier):
         return dn, entry
 
 
-class _AttributeModifier(Modifier):
-    """Modify entries base on attributes.ldif.
+class AttributeModifier(Modifier):
+    """Modify entries under ``ou=attributes,o=gluu`` tree.
     """
 
     @property
     def saml2_uris(self):
         self._saml2_uris = getattr(self, "_saml2_uris", {})
         if not self._saml2_uris:
-            with open("/app/templates/saml2_uri.json") as f:
+            with open("/app/templates/v4/saml2_uri.json") as f:
                 self._saml2_uris = json.loads(f.read())
         return self._saml2_uris
 
     def should_process(self, dn, entry):
-        suffix = "ou=attributes,o=%(inumOrg)s,o=gluu" % {"inumOrg": self.inum_org}
+        suffix = "ou=attributes,o={},o=gluu".format(self.inum_org)
         return dn.endswith(suffix)
 
     def process(self, dn, entry):
         dn = self.inum2id(self.transform_dn(dn))
-        entry["inum"] = [self.inum2id(i) for i in entry["inum"]]
-        entry["gluuSAML1URI"] = [
-            "urn:mace:dir:attribute-def:{}".format(name)
-            for name in entry["gluuAttributeName"]
-        ]
-        entry["gluuSAML2URI"] = self.saml2_uris.get(dn, [])
+
+        if "inum" in entry:
+            entry["inum"] = [self.inum2id(i) for i in entry["inum"]]
+
+        if "gluuAttributeName" in entry:
+            entry["gluuSAML1URI"] = [
+                "urn:mace:dir:attribute-def:{}".format(name)
+                for name in entry["gluuAttributeName"]
+            ]
+            entry["gluuSAML2URI"] = self.saml2_uris.get(dn, [])
         return dn, entry
 
 
-class _ScopeModifier(Modifier):
-    """Modify entries base on scopes.ldif.
+class ScopeModifier(Modifier):
+    """Modify entries under ``ou=scopes,o=gluu`` tree.
     """
+
+    @property
+    def suffix(self):
+        return "ou=scopes,o={},o=gluu".format(self.inum_org)
 
     def resolve_dn(self, dn):
         dn = self.inum2id(self.transform_dn(dn))
@@ -231,23 +159,28 @@ class _ScopeModifier(Modifier):
 
     def process(self, dn, entry):
         dn = self.resolve_dn(dn)
-        entry["oxId"] = entry.pop("displayName", [])
-        entry["inum"] = [self.inum2id(i) for i in entry["inum"]]
+
+        if "displayName" in entry:
+            entry["oxId"] = entry.pop("displayName", [])
+
+        if "inum" in entry:
+            entry["inum"] = [self.inum2id(i) for i in entry["inum"]]
 
         if "oxAuthClaim" in entry:
-            entry["oxAuthClaim"] = [
-                self.inum2id(c) for c in entry["oxAuthClaim"]
-            ]
+            entry["oxAuthClaim"] = [self.inum2id(c) for c in entry["oxAuthClaim"]]
 
         if "oxScriptDn" in entry:
-            entry["oxScriptDn"] = [
-                self.inum2id(c) for c in entry["oxScriptDn"]
-            ]
+            entry["oxScriptDn"] = [self.inum2id(c) for c in entry["oxScriptDn"]]
+
+        if "oxId" in entry and entry["oxId"] == ["uma_protection"]:
+            entry["displayName"] = ["UMA Protection"]
+            entry["oxScopeType"] = ["openid"]
         return dn, entry
 
 
-class _ScriptModifier(Modifier):
-    """Modify entries base on scripts.ldif v3.
+# @FIXME: conform to ce updater v4
+class ScriptModifier(Modifier):
+    """Modify entries under ``ou=scripts,o=gluu`` tree.
     """
 
     def should_process(self, dn, entry):
@@ -259,7 +192,10 @@ class _ScriptModifier(Modifier):
         return dn, entry
 
 
-class _ConfigurationModifier(Modifier):
+class ApplianceModifier(Modifier):
+    """Modify entries under ``ou=appliances,o=gluu`` tree.
+    """
+
     def resolve_dn(self, dn):
         dns = explode_dn(self.transform_dn(dn))
         try:
@@ -271,20 +207,6 @@ class _ConfigurationModifier(Modifier):
         if dn == "o=gluu":
             dn = "ou=configuration,o=gluu"
         return dn
-
-    def should_process(self, dn, entry):
-        dns = map(lambda f: f % {"inumAppliance": self.inum_appliance}, [
-            # v4 doesn't need these entries
-            # "ou=configuration,inum=%(inumAppliance)s,ou=appliances,o=gluu",
-            # "ou=oxasimba,ou=configuration,inum=%(inumAppliance)s,ou=appliances,o=gluu",
-            "inum=%(inumAppliance)s,ou=appliances,o=gluu",
-            "ou=trustRelationships,inum=%(inumAppliance)s,ou=appliances,o=gluu",
-            "ou=federations,inum=%(inumAppliance)s,ou=appliances,o=gluu",
-            "ou=oxauth,ou=configuration,inum=%(inumAppliance)s,ou=appliances,o=gluu",
-            "ou=oxtrust,ou=configuration,inum=%(inumAppliance)s,ou=appliances,o=gluu",
-            "ou=oxidp,ou=configuration,inum=%(inumAppliance)s,ou=appliances,o=gluu",
-        ])
-        return bool(dn in dns)
 
     def transform_base_config(self, entry):
         try:
@@ -501,6 +423,14 @@ class _ConfigurationModifier(Modifier):
         entry["oxTrustConfCacheRefresh"][0] = json.dumps(cr_conf)
         return entry
 
+    def should_process(self, dn, entry):
+        blacklisted = [
+            "ou=appliances,o=gluu",
+            "ou=configuration,inum={},ou=appliances,o=gluu".format(self.inum_appliance),
+            "ou=oxasimba,ou=configuration,inum={},ou=appliances,o=gluu".format(self.inum_appliance),
+        ]
+        return all([dn.endswith("ou=appliances,o=gluu"), dn not in blacklisted])
+
     def process(self, dn, entry):
         dn = self.resolve_dn(dn)
 
@@ -513,15 +443,293 @@ class _ConfigurationModifier(Modifier):
 
         if callable(callback):
             entry = callback(entry)
-
         return dn, entry
 
 
-class _OxidpModifier(Modifier):
+class OxidpModifier(Modifier):
+    """Modify entries under ``ou=oxidp,o=gluu`` tree.
+    """
+
     def should_process(self, dn, entry):
-        suffix = "ou=oxidp,o=%(inumOrg)s,o=gluu" % {"inumOrg": self.inum_org}
+        suffix = "ou=oxidp,o={},o=gluu".format(self.inum_org)
         return dn.endswith(suffix)
 
     def process(self, dn, entry):
         dn = self.transform_dn(dn)
         return dn, entry
+
+
+class SectorIdentifierModifier(Modifier):
+    """Modify entries under ``ou=sector_identifier,o=gluu`` tree.
+    """
+
+    def should_process(self, dn, entry):
+        suffix = "ou=sector_identifiers,o={},o=gluu".format(self.inum_org)
+        return dn.endswith(suffix)
+
+    def process(self, dn, entry):
+        dn = self.transform_dn(dn)
+        return dn, entry
+
+
+class ClientModifier(Modifier):
+    """Modify entries under ``ou=clients,o=gluu`` tree.
+    """
+
+    @property
+    def context(self):
+        self._context = getattr(self, "_context", {
+            "oxauth_client_id": self.manager.config.get("oxauth_client_id"),
+            "hostname": self.manager.config.get("hostname"),
+            "idp_client_id": self.manager.config.get("idp_client_id"),
+            "scim_rp_client_id": self.manager.config.get("scim_rp_client_id"),
+            "passport_rp_client_id": self.manager.config.get("passport_rp_client_id"),
+        })
+        return self._context
+
+    def should_process(self, dn, entry):
+        suffix = "ou=clients,o={},o=gluu".format(self.inum_org)
+        has_suffix = dn.endswith(suffix)
+        no_grant = "oxAuthGrant" not in entry["objectClass"]
+        # no_asimba = "ou=oxasimba" not in dn
+        # no_inbound_saml = "!0011!D40C.1CA3" not in dn
+        no_nonce = "oxAuthNonce" not in entry
+
+        if all([has_suffix,
+                no_grant,
+                no_nonce,
+                # no_asimba,
+                # no_inbound_saml,
+                ]):
+            return True
+        return False
+
+    def transform_oxtrust(self, entry):
+        hostname = self.context["hostname"]
+
+        entry["oxAuthLogoutURI"] = [
+            "https://{}/identity/ssologout.htm".format(hostname)
+        ]
+        entry["oxAuthPostLogoutRedirectURI"] = [
+            "https://{}/identity/finishlogout.htm".format(hostname)
+        ]
+
+        # uri need to be removed
+        del_uris = [
+            "https://{}/identity/authentication/getauthcode".format(hostname),
+            "https://{}/cas/login".format(hostname)
+        ]
+        for uri in del_uris:
+            try:
+                entry["oxAuthRedirectURI"].remove(uri)
+            except ValueError:
+                pass
+
+        # modify authcode
+        try:
+            idx = entry["oxAuthRedirectURI"].index(
+                "https://{}/identity/authentication/authcode".format(hostname)
+            )
+            entry["oxAuthRedirectURI"][idx] = "https://{}/identity/authcode.htm".format(hostname)
+        except ValueError:
+            pass
+        return entry
+
+    def process(self, dn, entry):
+        dn = self.transform_dn(dn)
+
+        if dn == "inum={},ou=clients,o=gluu".format(self.context["oxauth_client_id"]):
+            entry = self.transform_oxtrust(entry)
+
+        if dn == "inum={},ou=clients,o=gluu".format(self.context["scim_rp_client_id"]):
+            entry.pop("oxAuthScope", None)
+
+        if dn == "inum={},ou=clients,o=gluu".format(self.context["passport_rp_client_id"]):
+            entry.pop("oxAuthScope", None)
+
+        if "oxAuthScope" in entry:
+            entry["oxAuthScope"] = [self.inum2id(s) for s in entry["oxAuthScope"]]
+        return dn, entry
+
+
+class PeopleModifier(Modifier):
+    """Modify entries under ``ou=people,o=gluu`` tree.
+    """
+
+    @property
+    def context(self):
+        self._context = getattr(self, "_context", {
+            "admin_inum": self.manager.config.get("admin_inum"),
+        })
+        return self._context
+
+    def should_process(self, dn, entry):
+        suffix = "ou=people,o={},o=gluu".format(self.inum_org)
+        return dn.endswith(suffix)
+
+    def process(self, dn, entry):
+        dn = self.transform_dn(dn)
+
+        try:
+            if entry["uid"] == ["admin"]:
+                dn = "inum={},ou=people,o=gluu".format(self.context["admin_inum"])
+                entry["inum"] = [self.context["admin_inum"]]
+            entry["memberOf"] = [self.inum2id(m) for m in entry["memberOf"]]
+        except KeyError:
+            pass
+        return dn, entry
+
+
+class GroupModifier(Modifier):
+    """Modify entries under ``ou=groups,o=gluu`` tree.
+    """
+
+    @property
+    def context(self):
+        self._context = getattr(self, "_context", {
+            "admin_inum": self.manager.config.get("admin_inum"),
+        })
+        return self._context
+
+    def should_process(self, dn, entry):
+        suffix = "ou=groups,o={},o=gluu".format(self.inum_org)
+        return dn.endswith(suffix)
+
+    def process(self, dn, entry):
+        dn = self.inum2id(self.transform_dn(dn))
+
+        if "member" in entry:
+            try:
+                # migrate admin user
+                idx = entry["member"].index(
+                    "inum={0}!0000!A8F2.DE1E.D7FB,ou=people,o={0},o=gluu".format(self.inum_org)
+                )
+                entry["member"][idx] = "inum={},ou=people,o=gluu".format(self.context["admin_inum"])
+            except ValueError:
+                pass
+
+        if "inum" in entry:
+            entry["inum"] = [self.inum2id(inum) for inum in entry["inum"]]
+        return dn, entry
+
+
+class PushModifier(Modifier):
+    def should_process(self, dn, entry):
+        suffix = "ou=push,o={},o=gluu".format(self.inum_org)
+        return dn.endswith(suffix)
+
+    def process(self, dn, entry):
+        dn = self.transform_dn(dn)
+        return dn, entry
+
+
+class UmaModifier(Modifier):
+    @property
+    def context(self):
+        self._context = getattr(self, "_context", {
+            "passport_resource_id": self.manager.config.get("passport_resource_id"),
+            "scim_resource_oxid": self.manager.config.get("scim_resource_oxid"),
+            "admin_inum": self.manager.config.get("admin_inum"),
+            "passport_rs_client_id": self.manager.config.get("passport_rs_client_id"),
+        })
+        return self._context
+
+    def should_process(self, dn, entry):
+        blacklisted = [
+            "ou=scopes,ou=uma,o={},o=gluu".format(self.inum_org),
+        ]
+        suffix = "ou=uma,o={},o=gluu".format(self.inum_org)
+        return all([dn.endswith(suffix), dn not in blacklisted])
+
+    def resolve_scope(self, scope):
+        dns = explode_dn(self.inum2id(scope))
+        if "ou=uma" in dns:
+            dns.remove("ou=uma")
+        return implode_dn(dns)
+
+    def transform_passport_resource(self, entry):
+        entry["owner"] = ["inum={},ou=people,o=gluu".format(self.context["admin_inum"])]
+        entry["oxId"] = [self.context["passport_resource_id"]]
+        entry["oxAssociatedClient"] = ["inum={},ou=clients,o=gluu".format(self.context["passport_rs_client_id"])]
+        entry["oxAuthUmaScope"] = [self.resolve_scope(s) for s in entry["oxAuthUmaScope"]]
+        return entry
+
+    def transform_scim_resource(self, entry):
+        entry["owner"] = ["inum={},ou=people,o=gluu".format(self.context["admin_inum"])]
+        entry["oxId"] = [self.context["scim_resource_oxid"]]
+        entry["oxAssociatedClient"] = ["inum={},ou=clients,o=gluu".format(self.context["scim_rs_client_id"])]
+        entry["oxAuthUmaScope"] = [self.resolve_scope(s) for s in entry["oxAuthUmaScope"]]
+        return entry
+
+    def transform_scope(self, entry):
+        entry.pop("owner", None)
+        entry.pop("oxRevision", None)
+        entry["oxScopeType"] = ["uma"]
+        entry["objectClass"] = ["top", "oxAuthCustomScope"]
+        entry["oxUmaPolicyScriptDn"] = [
+            self.inum2id(s)
+            for s in entry.pop("oxPolicyScriptDn", [])
+        ]
+        return entry
+
+    def process(self, dn, entry):
+        dn = self.inum2id(self.transform_dn(dn))
+
+        if "inum" in entry:
+            entry["inum"] = [self.inum2id(i) for i in entry["inum"]]
+
+        if dn == "oxId=1543d9aa-035d-4a84-a1ca-c8a230054540,ou=resources,ou=uma,o=gluu":
+            dn = "oxId={},ou=resources,ou=uma,o=gluu".format(self.context["passport_resource_id"])
+            entry = self.transform_scim_resource(entry)
+
+        if dn == "oxId=0f963ecc-93f0-49c1-beae-ad2006abbb99,ou=resources,ou=uma,o=gluu":
+            dn = "oxId={},ou=resources,ou=uma,o=gluu".format(self.context["passport_resource_id"])
+            entry = self.transform_passport_resource(entry)
+
+        # migrate ou=scopes,ou=uma to ou=scopes
+        if "oxAuthUmaScopeDescription" in entry["objectClass"]:
+            dn = dn.replace("ou=uma,", "")
+            entry = self.transform_scope(entry)
+        return dn, entry
+
+
+class U2fModifier(Modifier):
+    def should_process(self, dn, entry):
+        suffix = "ou=u2f,o={},o=gluu".format(self.inum_org)
+        return dn.endswith(suffix)
+
+    def process(self, dn, entry):
+        dn = self.transform_dn(dn)
+        return dn, entry
+
+
+class ModManager(object):
+    # "ou=hosts,o=%(inumOrg)s,o=gluu",
+    # "ou=session,o=%(inumOrg)s,o=gluu",
+
+    def __init__(self, manager):
+        self.manager = manager
+        self.modifiers = map(lambda mod: mod(self.manager), [
+            # BaseModifier,
+            # ApplianceModifier,
+            # AttributeModifier,
+            # ScopeModifier,
+            # ScriptModifier,
+            # OxidpModifier,
+            # ClientModifier,
+            # SectorIdentifierModifier,
+            # GroupModifier,
+            # PeopleModifier,
+            # PushModifier,
+            # UmaModifier,
+            U2fModifier,
+        ])
+
+    def process(self, dn, entry):
+        for mod in self.modifiers:
+            if not mod.should_process(dn, entry):
+                continue
+            return mod.process(dn, entry)
+
+        # no modification applied
+        return "", None

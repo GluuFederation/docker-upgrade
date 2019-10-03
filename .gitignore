@@ -105,4 +105,6 @@ venv.bak/
 test.sh
 vault_role_id.txt
 vault_secret_id.txt
-*.ldif
+gluu.ldif
+site.ldif
+metric.ldif
