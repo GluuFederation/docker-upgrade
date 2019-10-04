@@ -1,0 +1,98 @@
+{
+    "inum=8BAF-80D6,ou=scripts,o=gluu": [
+        "50"
+    ],
+    "inum=A910-56AB,ou=scripts,o=gluu": [
+        "100"
+    ],
+    "inum=2124-0CF1,ou=scripts,o=gluu": [
+        "30"
+    ],
+    "inum=DAA9-B788,ou=scripts,o=gluu": [
+        "100"
+    ],
+    "inum=09A0-93D6,ou=scripts,o=gluu": [
+        "50"
+    ],
+    "inum=8BAF-80D7,ou=scripts,o=gluu": [
+        "70"
+    ],
+    "inum=24FD-B96E,ou=scripts,o=gluu": [
+        "40"
+    ],
+    "inum=92F0-BF9E,ou=scripts,o=gluu": [
+        "60"
+    ],
+    "inum=DAA9-B789,ou=scripts,o=gluu": [
+        "100"
+    ],
+    "inum=031C-4A65,ou=scripts,o=gluu": [
+        "100"
+    ],
+    "inum=031C-5622,ou=scripts,o=gluu": [
+        "100"
+    ],
+    "inum=2FDB-CF02,ou=scripts,o=gluu": [
+        "40"
+    ],
+    "inum=4BBE-C6A8,ou=scripts,o=gluu": [
+        "20"
+    ],
+    "inum=2DAF-F995,ou=scripts,o=gluu": [
+        "100"
+    ],
+    "inum=A51E-76DA,ou=scripts,o=gluu": [
+        "10"
+    ],
+    "inum=031C-5621,ou=scripts,o=gluu": [
+        "100"
+    ],
+    "inum=522F-CDC5,ou=scripts,o=gluu": [
+        "100"
+    ],
+    "inum=D40C-1CA4,ou=scripts,o=gluu": [
+        "60"
+    ],
+    "inum=CB5B-3211,ou=scripts,o=gluu": [
+        "100"
+    ],
+    "inum=OO11-BAFE,ou=scripts,o=gluu": [
+        "100"
+    ],
+    "inum=2DAF-F9A5,ou=scripts,o=gluu": [
+        "100"
+    ],
+    "inum=2DAF-AA91,ou=scripts,o=gluu": [
+        "1"
+    ],
+    "inum=92F0-759E,ou=scripts,o=gluu": [
+        "50"
+    ],
+    "inum=6EA0-8F0D,ou=scripts,o=gluu": [
+        "100"
+    ],
+    "inum=5018-F9CF,ou=scripts,o=gluu": [
+        "50"
+    ],
+    "inum=2DAF-F996,ou=scripts,o=gluu": [
+        "1"
+    ],
+    "inum=5018-AF9C,ou=scripts,o=gluu": [
+        "70"
+    ],
+    "inum=5018-D4BF,ou=scripts,o=gluu": [
+        "40"
+    ],
+    "inum=2DAF-AA90,ou=scripts,o=gluu": [
+        "1"
+    ],
+    "inum=DAA9-BA60,ou=scripts,o=gluu": [
+        "10"
+    ],
+    "inum=6EA0-8F0C,ou=scripts,o=gluu": [
+        "90"
+    ],
+    "inum=13D3-E7AD,ou=scripts,o=gluu": [
+        "100"
+    ]
+}

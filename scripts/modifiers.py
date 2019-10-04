@@ -5,6 +5,8 @@ import re
 
 import six
 
+from pygluu.containerlib.utils import generate_base64_contents
+
 from backends import implode_dn
 from backends import explode_dn
 
@@ -178,10 +180,17 @@ class ScopeModifier(Modifier):
         return dn, entry
 
 
-# @FIXME: conform to ce updater v4
 class ScriptModifier(Modifier):
     """Modify entries under ``ou=scripts,o=gluu`` tree.
     """
+
+    @property
+    def script_oxlevel(self):
+        self._script_oxlevel = getattr(self, "_script_oxlevel", {})
+        if not self._script_oxlevel:
+            with open("/app/templates/v4/oxlevel_script.json") as f:
+                self._script_oxlevel = json.loads(f.read())
+        return self._script_oxlevel
 
     def should_process(self, dn, entry):
         suffix = "ou=scripts,o=%(inumOrg)s,o=gluu" % {"inumOrg": self.inum_org}
@@ -189,12 +198,28 @@ class ScriptModifier(Modifier):
 
     def process(self, dn, entry):
         dn = self.inum2id(self.transform_dn(dn))
+
+        if "oxLevel" in entry:
+            entry["oxLevel"] = self.script_oxlevel.get(dn, [])
+
+        if "gluuStatus" in entry:
+            entry["oxEnabled"] = entry.pop("gluuStatus", [])
         return dn, entry
 
 
 class ApplianceModifier(Modifier):
     """Modify entries under ``ou=appliances,o=gluu`` tree.
     """
+
+    @property
+    def context(self):
+        self._context = getattr(self, "_context", {
+            "hostname": self.manager.config.get("hostname"),
+            "passportSpTLSCert": self.manager.config.get("passportSpTLSCert"),
+            "passportSpTLSKey": self.manager.config.get("passportSpTLSKey"),
+            "passport_rp_ii_client_id": self.manager.config.get("passport_rp_ii_client_id"),
+        })
+        return self._context
 
     def resolve_dn(self, dn):
         dns = explode_dn(self.transform_dn(dn))
@@ -423,6 +448,13 @@ class ApplianceModifier(Modifier):
         entry["oxTrustConfCacheRefresh"][0] = json.dumps(cr_conf)
         return entry
 
+    def transform_oxpassport_config(self, entry):
+        if "gluuPassportConfiguration" not in entry:
+            with open("/app/templates/v4/passport-central-config.json") as f:
+                ctx = f.read() % self.context
+            entry["gluuPassportConfiguration"] = [generate_base64_contents(ctx)]
+        return entry
+
     def should_process(self, dn, entry):
         blacklisted = [
             "ou=appliances,o=gluu",
@@ -438,6 +470,7 @@ class ApplianceModifier(Modifier):
             "ou=configuration,o=gluu": self.transform_base_config,
             "ou=oxauth,ou=configuration,o=gluu": self.transform_oxauth_config,
             "ou=oxtrust,ou=configuration,o=gluu": self.transform_oxtrust_config,
+            "ou=oxpassport,ou=configuration,o=gluu": self.transform_oxpassport_config,
         }
         callback = callbacks.get(dn)
 
@@ -631,6 +664,7 @@ class UmaModifier(Modifier):
             "scim_resource_oxid": self.manager.config.get("scim_resource_oxid"),
             "admin_inum": self.manager.config.get("admin_inum"),
             "passport_rs_client_id": self.manager.config.get("passport_rs_client_id"),
+            "scim_rs_client_id": self.manager.config.get("scim_rs_client_id"),
         })
         return self._context
 
@@ -704,25 +738,24 @@ class U2fModifier(Modifier):
 
 
 class ModManager(object):
-    # "ou=hosts,o=%(inumOrg)s,o=gluu",
-    # "ou=session,o=%(inumOrg)s,o=gluu",
-
     def __init__(self, manager):
         self.manager = manager
         self.modifiers = map(lambda mod: mod(self.manager), [
-            # BaseModifier,
-            # ApplianceModifier,
-            # AttributeModifier,
-            # ScopeModifier,
-            # ScriptModifier,
-            # OxidpModifier,
-            # ClientModifier,
-            # SectorIdentifierModifier,
-            # GroupModifier,
-            # PeopleModifier,
-            # PushModifier,
-            # UmaModifier,
+            BaseModifier,
+            ApplianceModifier,
+            AttributeModifier,
+            ScopeModifier,
+            ScriptModifier,
+            OxidpModifier,
+            ClientModifier,
+            SectorIdentifierModifier,
+            GroupModifier,
+            PeopleModifier,
+            PushModifier,
+            UmaModifier,
             U2fModifier,
+            SiteModifier,
+            MetricModifier,
         ])
 
     def process(self, dn, entry):

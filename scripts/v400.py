@@ -10,8 +10,6 @@ from pygluu.containerlib.utils import encode_text
 from pygluu.containerlib.utils import exec_cmd
 
 from backends import LDAPBackend
-from modifiers import SiteModifier
-from modifiers import MetricModifier
 from modifiers import ModManager
 
 SIG_KEYS = "RS256 RS384 RS512 ES256 ES384 ES512"
@@ -48,76 +46,39 @@ class Upgrade400(object):
         self.manager = manager
         self.version = "4.0.0"
 
-    def modify_site(self):
-        file_ = "/app/imports/site.ldif"
+    def modify_entries(self):
+        file_mappings = [
+            ("/app/imports/gluu.ldif", "userRoot"),
+            ("/app/imports/site.ldif", "site"),
+            ("/app/imports/metric.ldif", "metric"),
+        ]
 
-        try:
-            logger.info("Processing upgrade for o=site backend")
-            parser = LDIFParser(open(file_))
-            mod = SiteModifier(self.manager)
+        for file_, backend in file_mappings:
+            try:
+                logger.info("Processing upgrade for {} backend".format(backend))
+                parser = LDIFParser(open(file_))
+                mod = ModManager(self.manager)
 
-            for dn, entry in parser.parse():
-                dn, entry = mod.process(dn, entry)
-                if not dn:
-                    continue
+                for dn, entry in parser.parse():
+                    dn, entry = mod.process(dn, entry)
+                    if not dn:
+                        continue
 
-                modified, err = self.backend.upsert_entry(dn, entry)
-                if not modified:
-                    logger.warn(err)
-        except IOError as exc:
-            logger.warning("Unable to process upgrade for o=site backend; "
-                           "reason={}".format(exc))
+                    modified, err = self.backend.upsert_entry(dn, entry)
+                    if not modified:
+                        logger.warn(err)
+            except IOError as exc:
+                logger.warning("Unable to modify entries for {} backend; "
+                               "reason={}".format(backend, exc))
 
-    def modify_metric(self):
-        file_ = "/app/imports/metric.ldif"
-
-        try:
-            logger.info("Processing upgrade for o=metric backend")
-            parser = LDIFParser(open(file_))
-            mod = MetricModifier(self.manager)
-
-            for dn, entry in parser.parse():
-                dn, entry = mod.process(dn, entry)
-                if not dn:
-                    continue
-
-                modified, err = self.backend.upsert_entry(dn, entry)
-                if not modified:
-                    logger.warn(err)
-        except IOError as exc:
-            logger.warning("Unable to process upgrade for o=metric backend; "
-                           "reason={}".format(exc))
-
-    def modify_user_root(self):
-        file_ = "/app/imports/gluu.ldif"
-
-        try:
-            logger.info("Processing upgrade for o=gluu backend")
-            parser = LDIFParser(open(file_))
-            mod = ModManager(self.manager)
-
-            for dn, entry in parser.parse():
-                dn, entry = mod.process(dn, entry)
-                if not dn:
-                    continue
-
-                # modified, err = self.backend.upsert_entry(dn, entry)
-                # if not modified:
-                #     logger.warn(err)
-
-            # # the following entries are needed by Gluu Server v4
-            # self.add_extra_entries()
-        except IOError as exc:
-            logger.warning("Unable to process upgrade for o=gluu backend; "
-                           "reason={}".format(exc))
+        # # the following entries are needed by Gluu Server v4
+        # self.add_extra_entries()
 
     def add_extra_entries(self):
-        parser = LDIFParser(open("/app/templates/v4/extra_entries.ldif"))
+        parser = LDIFParser(
+            open("/app/templates/v4/extra_entries.ldif"),
+        )
         for dn, entry in parser.parse():
-            entry = self.backend.get_entry(dn)
-            if entry:
-                continue
-
             _, err = self.backend.add_entry(dn, entry)
             if err:
                 logger.warn(err)
@@ -214,6 +175,9 @@ class Upgrade400(object):
             )
 
     def prepare_context(self):
+        self.api_rs_context()
+        self.api_rp_context()
+
         if not self.manager.config.get("admin_inum"):
             self.manager.config.set("admin_inum", "{}".format(uuid.uuid4()))
 
@@ -235,10 +199,6 @@ class Upgrade400(object):
                 self.manager.config.set(key, "0008-{}".format(uuid.uuid4()))
 
     def run_upgrade(self):
-        # self.api_rs_context()
-        # self.api_rp_context()
         self.prepare_context()
-
-        # self.modify_site()
-        # self.modify_metric()
-        self.modify_user_root()
+        self.modify_entries()
+        self.add_extra_entries()
