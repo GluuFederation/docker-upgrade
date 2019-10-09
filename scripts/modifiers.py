@@ -5,8 +5,6 @@ import re
 
 import six
 
-from pygluu.containerlib.utils import generate_base64_contents
-
 from backends import implode_dn
 from backends import explode_dn
 
@@ -98,7 +96,7 @@ class BaseModifier(Modifier):
         if dn == "o=gluu":
             entry["o"] = "gluu"
             entry["gluuManagerGroup"] = [
-                self.transform_dn(group) for group in entry["gluuManagerGroup"]
+                self.inum2id(self.transform_dn(group)) for group in entry["gluuManagerGroup"]
             ]
             entry.pop("gluuAddPersonCapability", None)
             entry.pop("scimAuthMode", None)
@@ -156,7 +154,7 @@ class ScopeModifier(Modifier):
         return dn
 
     def should_process(self, dn, entry):
-        suffix = "ou=scopes,o=%(inumOrg)s,o=gluu" % {"inumOrg": self.inum_org}
+        suffix = "ou=scopes,o={},o=gluu".format(self.inum_org)
         return dn.endswith(suffix)
 
     def process(self, dn, entry):
@@ -193,8 +191,12 @@ class ScriptModifier(Modifier):
         return self._script_oxlevel
 
     def should_process(self, dn, entry):
-        suffix = "ou=scripts,o=%(inumOrg)s,o=gluu" % {"inumOrg": self.inum_org}
-        return dn.endswith(suffix)
+        blacklisted = [
+            # saml script
+            "inum={0}!0011!D40C.1CA3,ou=scripts,o={0},o=gluu".format(self.inum_org)
+        ]
+        suffix = "ou=scripts,o={},o=gluu".format(self.inum_org)
+        return all([dn.endswith(suffix), dn not in blacklisted])
 
     def process(self, dn, entry):
         dn = self.inum2id(self.transform_dn(dn))
@@ -204,6 +206,9 @@ class ScriptModifier(Modifier):
 
         if "gluuStatus" in entry:
             entry["oxEnabled"] = entry.pop("gluuStatus", [])
+
+        if "inum" in entry:
+            entry["inum"] = [self.inum2id(i) for i in entry["inum"]]
         return dn, entry
 
 
@@ -218,6 +223,11 @@ class ApplianceModifier(Modifier):
             "passportSpTLSCert": self.manager.config.get("passportSpTLSCert"),
             "passportSpTLSKey": self.manager.config.get("passportSpTLSKey"),
             "passport_rp_ii_client_id": self.manager.config.get("passport_rp_ii_client_id"),
+            "passport_resource_id": self.manager.config.get("passport_resource_id"),
+            "oxtrust_resource_server_client_id": self.manager.config.get("oxtrust_resource_server_client_id"),
+            "oxtrust_resource_id": self.manager.config.get("oxtrust_resource_id"),
+            "api_rs_client_jks_fn": self.manager.config.get("api_rs_client_jks_fn"),
+            "api_rs_client_jks_pass_encoded": self.manager.secret.get("api_rs_client_jks_pass_encoded"),
         })
         return self._context
 
@@ -286,7 +296,7 @@ class ApplianceModifier(Modifier):
 
         # attrs need to be added
         new_attrs = {
-            "tokenRevocationEndpoint": "https://{}/oxauth/restv1/revoke".format(self.manager.config.get("hostname")),
+            "tokenRevocationEndpoint": "https://{}/oxauth/restv1/revoke".format(self.context["hostname"]),
             "responseModesSupported": ["query", "fragment", "form_post"],
             "cleanServiceBatchChunkSize": 1000,
         }
@@ -414,23 +424,24 @@ class ApplianceModifier(Modifier):
         app_conf["logoLocation"] = "/var/gluu/photos"
         app_conf["ldifStore"] = "/var/gluu/identity/removed"
         app_conf["loginRedirectUrl"] = "https://{}/identity/authcode.htm".format(
-            self.manager.config.get("hostname")
+            self.context["hostname"]
         )
         app_conf["logoutRedirectUrl"] = "https://{}/identity/finishlogout.htm".format(
-            self.manager.config.get("hostname")
+            self.context["hostname"]
         )
+        app_conf["passportUmaResourceId"] = self.context["passport_resource_id"]
 
         # attrs need to be added
         new_attrs = {
             "applicationUrl": app_conf.pop("applianceUrl", ""),
             "updateStatus": app_conf.pop("updateApplianceStatus", ""),
             "oxTrustApiTestMode": False,
-            "apiUmaClientId": self.manager.config.get("oxtrust_resource_server_client_id"),
+            "apiUmaClientId": self.context["oxtrust_resource_server_client_id"],
             "apiUmaClientKeyId": "",
-            "apiUmaResourceId": self.manager.config.get("oxtrust_resource_id"),
-            "apiUmaScope": "https://{}/oxauth/restv1/uma/scopes/oxtrust-api-read".format(self.manager.config.get("hostname")),
-            "apiUmaClientKeyStoreFile": self.manager.config.get("api_rs_client_jks_fn"),
-            "apiUmaClientKeyStorePassword": self.manager.secret.get("api_rs_client_jks_pass_encoded"),
+            "apiUmaResourceId": self.context["oxtrust_resource_id"],
+            "apiUmaScope": "https://{}/oxauth/restv1/uma/scopes/oxtrust-api-read".format(self.context["hostname"]),
+            "]apiUmaClientKeyStoreFile": self.context["api_rs_client_jks_fn"],
+            "apiUmaClientKeyStorePassword": self.context["api_rs_client_jks_pass_encoded"],
         }
 
         app_conf.update({
@@ -452,7 +463,7 @@ class ApplianceModifier(Modifier):
         if "gluuPassportConfiguration" not in entry:
             with open("/app/templates/v4/passport-central-config.json") as f:
                 ctx = f.read() % self.context
-            entry["gluuPassportConfiguration"] = [generate_base64_contents(ctx)]
+            entry["gluuPassportConfiguration"] = [ctx]
         return entry
 
     def should_process(self, dn, entry):
