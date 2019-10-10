@@ -1,13 +1,16 @@
 # import itertools
 import logging
-# import json
+import json
 import os
 import uuid
 
 from ldif3 import LDIFParser
 
+from pygluu.containerlib.utils import decode_text
 from pygluu.containerlib.utils import encode_text
 from pygluu.containerlib.utils import exec_cmd
+from pygluu.containerlib.utils import get_random_chars
+from pygluu.containerlib.utils import generate_base64_contents
 
 from backends import LDAPBackend
 from modifiers import ModManager
@@ -71,12 +74,31 @@ class Upgrade400(object):
                 logger.warning("Unable to modify entries for {} backend; "
                                "reason={}".format(backend, exc))
 
-        # # the following entries are needed by Gluu Server v4
-        # self.add_extra_entries()
-
     def add_extra_entries(self):
+        with open("/app/templates/v4/super_gluu_ro.py") as f:
+            super_gluu_ro_script = generate_base64_contents(f.read())
+
+        with open("/app/templates/v4/super_gluu_ro_session.py") as f:
+            super_gluu_ro_session_script = generate_base64_contents(f.read())
+
+        ctx = {
+            "hostname": self.manager.config.get("hostname"),
+            "gluu_radius_client_id": self.manager.config.get("gluu_radius_client_id"),
+            "enableRadiusScripts": "false",
+            "super_gluu_ro_session_script": super_gluu_ro_session_script,
+            "super_gluu_ro_script": super_gluu_ro_script,
+            "gluu_ro_encoded_pw": self.manager.secret.get("gluu_ro_encoded_pw"),
+            "gluu_ro_client_base64_jwks": generate_base64_contents(self.manager.secret.get("gluu_ro_client_base64_jwks")),
+        }
+
+        with open("/app/templates/v4/extra_entries.ldif") as f:
+            txt = f.read() % ctx
+
+            with open("/tmp/extra_entries.ldif", "w") as fw:
+                fw.write(txt)
+
         parser = LDIFParser(
-            open("/app/templates/v4/extra_entries.ldif"),
+            open("/tmp/extra_entries.ldif"),
         )
         for dn, entry in parser.parse():
             _, err = self.backend.add_entry(dn, entry)
@@ -174,9 +196,61 @@ class Upgrade400(object):
                 encode=True,
             )
 
+    def radius_context(self):
+        self.set_config("gluu_radius_client_id", '0008-{}'.format(uuid.uuid4()))
+        self.set_config("ox_radius_client_id", '0008-{}'.format(uuid.uuid4()))
+
+        self.set_secret(
+            "gluu_ro_encoded_pw",
+            encode_text(get_random_chars(), self.manager.secret.get("encoded_salt")),
+        )
+
+        self.set_secret(
+            "radius_jwt_pass",
+            encode_text(get_random_chars(), self.manager.secret.get("encoded_salt")),
+        )
+        radius_jwt_pass = self.manager.secret.get("radius_jwt_pass")
+
+        secrets_avail = all([
+            self.manager.secret.get("radius_jks_base64"),
+            self.manager.secret.get("gluu_ro_client_base64_jwks"),
+            self.manager.secret.get("radius_jwt_keyId"),
+        ])
+
+        if secrets_avail:
+            # nothing to do
+            return
+
+        out, err, retcode = generate_openid_keys(
+            decode_text(radius_jwt_pass, self.manager.secret.get("encoded_salt")),
+            "/etc/certs/gluu-radius.jks",
+            "/etc/certs/gluu-radius.keys",
+            self.manager.config.get("default_openid_jks_dn_name"),
+        )
+        assert retcode == 0, "Unable to generate Gluu Radius keys; reason={}".format(err)
+
+        for key in json.loads(out)["keys"]:
+            if key["alg"] == "RS512":
+                self.manager.config.set("radius_jwt_keyId", key["kid"])
+                break
+
+        if not self.manager.secret.get("radius_jks_base64"):
+            self.manager.secret.from_file(
+                "radius_jks_base64",
+                "/etc/certs/gluu-radius.jks",
+                encode=True,
+            )
+
+        if not self.manager.secret.get("gluu_ro_client_base64_jwks"):
+            self.manager.secret.from_file(
+                "gluu_ro_client_base64_jwks",
+                "/etc/certs/gluu-radius.keys",
+            )
+
     def prepare_context(self):
         self.api_rs_context()
         self.api_rp_context()
+        self.radius_context()
 
         if not self.manager.config.get("admin_inum"):
             self.manager.config.set("admin_inum", "{}".format(uuid.uuid4()))
@@ -191,10 +265,7 @@ class Upgrade400(object):
                     "passport_rs_client_id",
                     "passport_rp_ii_client_id",
                     "oxtrust_resource_server_client_id",
-                    "oxtrust_resource_id",
-                    "gluu_radius_client_id",
-                    "ox_radius_client_id"]:
-
+                    "oxtrust_resource_id"]:
             if not self.manager.config.get(key):
                 self.manager.config.set(key, "0008-{}".format(uuid.uuid4()))
 
