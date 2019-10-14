@@ -75,11 +75,19 @@ class Upgrade400(object):
                                "reason={}".format(backend, exc))
 
     def add_extra_entries(self):
+        # radius scripts
         with open("/app/templates/v4/super_gluu_ro.py") as f:
             super_gluu_ro_script = generate_base64_contents(f.read())
 
         with open("/app/templates/v4/super_gluu_ro_session.py") as f:
             super_gluu_ro_session_script = generate_base64_contents(f.read())
+
+        # casa scripts
+        with open("/app/templates/v4/person_authentication_casa.py") as f:
+            person_authentication_casa = generate_base64_contents(f.read())
+
+        with open("/app/templates/v4/client_registration_casa.py") as f:
+            client_registration_casa = generate_base64_contents(f.read())
 
         ctx = {
             "hostname": self.manager.config.get("hostname"),
@@ -89,6 +97,8 @@ class Upgrade400(object):
             "super_gluu_ro_script": super_gluu_ro_script,
             "gluu_ro_encoded_pw": self.manager.secret.get("gluu_ro_encoded_pw"),
             "gluu_ro_client_base64_jwks": generate_base64_contents(self.manager.secret.get("gluu_ro_client_base64_jwks")),
+            "person_authentication_casa": person_authentication_casa,
+            "client_registration_casa": client_registration_casa,
         }
 
         with open("/app/templates/v4/extra_entries.ldif") as f:

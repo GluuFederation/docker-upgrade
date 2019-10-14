@@ -4,10 +4,10 @@ set -e
 
 cat << LICENSE_ACK
 
-# ========================================================================================= #
+# ================================================================================================ #
 # Gluu License Agreement: https://github.com/GluuFederation/enterprise-edition/blob/4.0.0/LICENSE. #
-# The use of Gluu Server Docker Edition is subject to the Gluu Support License.             #
-# ========================================================================================= #
+# The use of Gluu Server Docker Edition is subject to the Gluu Support License.                    #
+# ================================================================================================ #
 
 LICENSE_ACK
 
