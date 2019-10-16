@@ -58,7 +58,8 @@ class Upgrade400(object):
 
         for file_, backend in file_mappings:
             try:
-                logger.info("Processing upgrade for {} backend".format(backend))
+                logger.info("Loading entries from {} "
+                            "for {} backend".format(file_, backend))
                 parser = LDIFParser(open(file_))
                 mod = ModManager(self.manager)
 
@@ -280,6 +281,13 @@ class Upgrade400(object):
                 self.manager.config.set(key, "0008-{}".format(uuid.uuid4()))
 
     def run_upgrade(self):
+        logger.info("Preparing config and secret")
         self.prepare_context()
+
+        logger.info("Processing existing LDAP entries")
         self.modify_entries()
+
+        logger.info("Adding misc LDAP entries")
         self.add_extra_entries()
+
+        return True
