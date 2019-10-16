@@ -112,4 +112,5 @@ RUN mkdir -p /etc/certs /etc/gluu/conf /app
 COPY scripts /app/scripts
 COPY templates /app/templates
 
+RUN chmod +x /app/scripts/entrypoint.sh
 ENTRYPOINT ["tini", "-g", "--", "sh", "/app/scripts/entrypoint.sh"]
