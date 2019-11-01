@@ -32,7 +32,7 @@ LOGGING_CONFIG = {
             "level": "INFO",
             "propagate": False,
         },
-        "v400": {
+        "v40": {
             "handlers": ["console"],
             "level": "INFO",
             "propagate": False,

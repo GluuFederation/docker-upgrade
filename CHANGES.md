@@ -2,6 +2,13 @@
 
 Here you can see an overview of changes between each release.
 
+## Version 4.0.1_01
+
+Released on November 1st, 2019.
+
+* Upgraded to Gluu Server 4.0.1.
+* Removed `4.0.0` target version in favor of `4.0` version.
+
 ## Version 4.0.0_01
 
 Released on October 22nd, 2019.

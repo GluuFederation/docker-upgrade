@@ -18,7 +18,7 @@ from modifiers import ModManager
 SIG_KEYS = "RS256 RS384 RS512 ES256 ES384 ES512"
 ENC_KEYS = "RSA_OAEP RSA1_5"
 
-logger = logging.getLogger("v400")
+logger = logging.getLogger("v40")
 
 
 def generate_openid_keys(passwd, jks_path, jwks_path, dn, exp=365):
@@ -43,11 +43,11 @@ def generate_openid_keys(passwd, jks_path, jwks_path, dn, exp=365):
     return out, err, retcode
 
 
-class Upgrade400(object):
+class Upgrade40(object):
     def __init__(self, manager):
         self.backend = LDAPBackend(manager)
         self.manager = manager
-        self.version = "4.0.0"
+        self.version = "4.0"
 
     def modify_entries(self):
         file_mappings = [
