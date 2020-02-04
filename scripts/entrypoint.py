@@ -11,6 +11,7 @@ from settings import LOGGING_CONFIG
 from v315 import Upgrade315
 from v316 import Upgrade316
 from v40 import Upgrade40
+from v41 import Upgrade41
 
 logging.config.dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger("entrypoint")
@@ -20,6 +21,7 @@ SUPPORTED_VERSIONS = [
     "3.1.5",
     "3.1.6",
     "4.0",
+    "4.1",
 ]
 
 # current version is the latest supported version
@@ -29,6 +31,7 @@ UPGRADER_CLASSES = {
     "3.1.5": Upgrade315,
     "3.1.6": Upgrade316,
     "4.0": Upgrade40,
+    "4.1": Upgrade41,
 }
 
 

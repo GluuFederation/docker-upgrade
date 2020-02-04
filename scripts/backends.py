@@ -70,22 +70,37 @@ class LDAPBackend(object):
             saved, err = self.add_entry(key, attrs)
         return saved, err
 
-    def all(self, key="", search_filter=""):
+    def all(self, key="", filter_="", attrs=None):
         key = key or "o=gluu"
-        search_filter = search_filter or "(objectClass=*)"
+        # search_filter = search_filter or "(objectClass=*)"
+
+        attrs = None or ["*"]
+        filter_ = filter_ or "(objectClass=*)"
 
         with self.conn as conn:
-            result_iter = conn.extend.standard.paged_search(
+            # result_iter = conn.extend.standard.paged_search(
+            #     search_base=key,
+            #     search_filter=search_filter,
+            #     search_scope=SUBTREE,
+            #     attributes="*",
+            #     generator=True,
+            # )
+            # # we cannot return the original generator since operating on
+            # # the generator needs an established connection to LDAP
+            # # (or it will raise socket error); hence we create another generator
+            # for e in result_iter:
+            #     yield e
+
+            conn.search(
                 search_base=key,
-                search_filter=search_filter,
+                search_filter=filter_,
                 search_scope=SUBTREE,
-                attributes="*",
-                generator=True,
+                attributes=attrs,
             )
-            # we cannot return the original generator since operating on
-            # the generator needs an established connection to LDAP
-            # (or it will raise socket error); hence we create another generator
-            for e in result_iter:
+
+            # if not conn.entries:
+            #     return []
+            for e in conn.entries:
                 yield e
 
 
