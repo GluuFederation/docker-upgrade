@@ -108,3 +108,5 @@ vault_secret_id.txt
 gluu.ldif
 site.ldif
 metric.ldif
+couchbase.crt
+couchbase_password

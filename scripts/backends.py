@@ -1,4 +1,6 @@
+import json
 import os
+from collections import namedtuple
 
 from ldap3 import BASE
 from ldap3 import Connection
@@ -9,9 +11,12 @@ from ldap3.utils.dn import safe_dn
 from ldap3.utils.dn import to_dn
 
 from pygluu.containerlib.utils import decode_text
+from pygluu.containerlib.persistence.couchbase import CouchbaseClient
+from pygluu.containerlib.persistence.couchbase import get_couchbase_password
+from pygluu.containerlib.persistence.couchbase import get_couchbase_user
 
 
-class LDAPBackend(object):
+class LegacyLDAPBackend(object):
     def __init__(self, manager):
         url = os.environ.get("GLUU_LDAP_URL", "localhost:1636")
         user = manager.config.get("ldap_binddn")
@@ -72,53 +77,18 @@ class LDAPBackend(object):
 
     def all(self, key="", filter_="", attrs=None):
         key = key or "o=gluu"
-        # search_filter = search_filter or "(objectClass=*)"
-
         attrs = None or ["*"]
         filter_ = filter_ or "(objectClass=*)"
 
         with self.conn as conn:
-            # result_iter = conn.extend.standard.paged_search(
-            #     search_base=key,
-            #     search_filter=search_filter,
-            #     search_scope=SUBTREE,
-            #     attributes="*",
-            #     generator=True,
-            # )
-            # # we cannot return the original generator since operating on
-            # # the generator needs an established connection to LDAP
-            # # (or it will raise socket error); hence we create another generator
-            # for e in result_iter:
-            #     yield e
-
             conn.search(
                 search_base=key,
                 search_filter=filter_,
                 search_scope=SUBTREE,
                 attributes=attrs,
             )
-
-            # if not conn.entries:
-            #     return []
             for e in conn.entries:
                 yield e
-
-
-class CouchbaseBackend(object):
-    def __init__(self, manager):
-        pass
-
-    def get_entry(self, key, filter_="", attrs=None):
-        pass
-
-    def modify_entry(self, key, attrs=None):
-        pass
-
-    def add_entry(self, key, attrs=None):
-        pass
-
-    def all(self):
-        pass
 
 
 #: shortcut to ldap3.utils.dn:to_dn
@@ -126,3 +96,152 @@ explode_dn = to_dn
 
 #: shortcut to ldap3.utils.dn:safe_dn
 implode_dn = safe_dn
+
+Entry = namedtuple("Entry", ["id", "attrs"])
+
+
+class LDAPBackend(object):
+    def __init__(self, manager):
+        url = os.environ.get("GLUU_LDAP_URL", "localhost:1636")
+        user = manager.config.get("ldap_binddn")
+        passwd = decode_text(
+            manager.secret.get("encoded_ox_ldap_pw"),
+            manager.secret.get("encoded_salt"),
+        )
+
+        server = Server(url, port=1636, use_ssl=True)
+        self.conn = Connection(server, user, passwd)
+        self.manager = manager
+
+    def get_entry(self, key, filter_="", attrs=None, **kwargs):
+        attrs = None or ["*"]
+        filter_ = filter_ or "(objectClass=*)"
+
+        with self.conn as conn:
+            conn.search(
+                search_base=key,
+                search_filter=filter_,
+                search_scope=BASE,
+                attributes=attrs,
+            )
+
+            if not conn.entries:
+                return
+
+            entry = conn.entries[0]
+            id_ = entry.entry_dn
+            attrs = {}
+
+            for k, v in entry.entry_attributes_as_dict.items():
+                if len(v) < 2:
+                    v = v[0]
+                attrs[k] = v
+            return Entry(id_, attrs)
+
+    def modify_entry(self, key, attrs=None, **kwargs):
+        attrs = attrs or {}
+
+        for k, v in attrs.items():
+            if not isinstance(v, list):
+                v = [v]
+            attrs[k] = [(MODIFY_REPLACE, v)]
+
+        with self.conn as conn:
+            conn.modify(key, attrs)
+            return bool(conn.result["description"] == "success"), conn.result["message"]
+
+    def add_entry(self, key, attrs=None, **kwargs):
+        attrs = attrs or {}
+
+        for k, v in attrs.items():
+            if not isinstance(v, list):
+                v = [v]
+            attrs[k] = v
+
+        with self.conn as conn:
+            conn.add(key, attributes=attrs)
+            return bool(conn.result["description"] == "success"), conn.result["message"]
+
+    def delete_entry(self, key, **kwargs):
+        with self.conn as conn:
+            conn.delete(key)
+            return bool(conn.result["description"] == "success"), conn.result["message"]
+
+    def upsert_entry(self, key, attrs=None, **kwargs):
+        attrs = attrs or {}
+
+        saved, err = self.modify_entry(key, attrs)
+        if not saved:
+            saved, err = self.add_entry(key, attrs)
+        return saved, err
+
+    def all(self, key="", filter_="", attrs=None, **kwargs):
+        key = key or "o=gluu"
+
+        attrs = None or ["*"]
+        filter_ = filter_ or "(objectClass=*)"
+
+        with self.conn as conn:
+            conn.search(
+                search_base=key,
+                search_filter=filter_,
+                search_scope=SUBTREE,
+                attributes=attrs,
+            )
+
+            for entry in conn.entries:
+                id_ = entry.entry_dn
+                attrs = entry.entry_attributes_as_dict
+
+                for k, v in attrs.items():
+                    if len(v) < 2:
+                        v = v[0]
+                    attrs[k] = v
+                yield Entry(id_, attrs)
+
+
+class CouchbaseBackend(object):
+    def __init__(self, manager):
+        hosts = os.environ.get("GLUU_COUCHBASE_URL", "localhost")
+        user = get_couchbase_user(manager)
+        password = get_couchbase_password(manager)
+        self.client = CouchbaseClient(hosts, user, password)
+
+    def get_entry(self, key, filter_="", attrs=None, **kwargs):
+        bucket = kwargs.get("bucket")
+        req = self.client.exec_query(
+            "SELECT META().id, {0}.* FROM {0} USE KEYS '{1}'".format(bucket, key)
+        )
+        if req.ok:
+            attrs = req.json()["results"][0]
+            return Entry(attrs.pop("id"), attrs)
+        return
+
+    def modify_entry(self, key, attrs=None, **kwargs):
+        bucket = kwargs.get("bucket")
+        set_kv = "{}".format(
+            ",".join(["{}={}".format(k, json.dumps(v)) for k, v in attrs.items()])
+        )
+
+        query = "UPDATE {} USE KEYS '{}' SET {}".format(bucket, key, set_kv)
+        req = self.client.exec_query(query)
+        if req.ok:
+            resp = req.json()
+            return resp["status"] == "success", resp["status"]
+        return False, ""
+
+    # def add_entry(self, key, attrs=None, **kwargs):
+    #     bucket = kwargs.get("bucket")
+
+    # def upsert_entry(self, key, attrs=None, **kwargs):
+    #     bucket = kwargs.get("bucket")
+
+    def all(self, key="", filter_="", attrs=None, **kwargs):
+        bucket = kwargs.get("bucket")
+
+        req = self.client.exec_query(
+            "SELECT META().id, {0}.* FROM {0} WHERE {1}".format(bucket, filter_)
+        )
+        if req.ok:
+            for entry in req.json()["results"]:
+                yield Entry(entry.pop("id"), entry)

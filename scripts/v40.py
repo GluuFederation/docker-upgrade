@@ -12,7 +12,7 @@ from pygluu.containerlib.utils import exec_cmd
 from pygluu.containerlib.utils import get_random_chars
 from pygluu.containerlib.utils import generate_base64_contents
 
-from backends import LDAPBackend
+from backends import LegacyLDAPBackend as LDAPBackend
 from modifiers import ModManager
 
 SIG_KEYS = "RS256 RS384 RS512 ES256 ES384 ES512"

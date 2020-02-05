@@ -3,7 +3,7 @@ import logging
 
 from pygluu.containerlib.utils import generate_base64_contents
 
-from backends import LDAPBackend
+from backends import LegacyLDAPBackend as LDAPBackend
 
 logger = logging.getLogger("v316")
 
