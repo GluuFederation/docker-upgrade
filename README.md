@@ -6,10 +6,10 @@ This will be run as a job in Kubernetes or separate container in Docker. It will
 
 ## Versions
 
-- Stable: `gluufederation/upgrade:4.1.0_01`
+- Stable: N/A
 - Unstable: `gluufederation/upgrade:4.1.0_dev`
 
-Refer to [Changelog](https://github.com/GluuFederation/docker-upgrade/blob/4.0/CHANGES.md) for details on new features, bug fixes, or older releases.
+Refer to [Changelog](./CHANGES.md) for details on new features, bug fixes, or older releases.
 
 ## Environment Variables
 
@@ -70,7 +70,7 @@ The following parameters are supported by the container:
         -e GLUU_LDAP_URL=ldap:1636 \
         -v /path/to/vault_role_id.txt:/etc/certs/vault_role_id \
         -v /path/to/vault_secret_id.txt:/etc/certs/vault_secret_id \
-        gluufederation/upgrade:4.1.0_01 \
+        gluufederation/upgrade:4.1.0_dev \
             --source 4.0 \
             --target 4.1
    ```
@@ -88,7 +88,7 @@ The following parameters are supported by the container:
           restartPolicy: Never
           containers:
             - name: gluu-upgrade-job
-              image: gluufederation/upgrade:4.0.0
+              image: gluufederation/upgrade:4.1.0_dev
               envFrom:
               - configMapRef:
                   name: upgrade-cm
