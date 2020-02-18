@@ -1,0 +1,32 @@
+{
+  "gluu_user": {
+    "attributes": [
+      ["oxStatus"],
+      ["oxApplication"],
+      ["oxDeviceHashCode"],
+      ["oxDeviceKeyHandle"],
+      ["oxAuthClientId"],
+      ["oxAuthUserId"]
+
+    ],
+    "static" : [
+    ]
+  },
+
+  "gluu": {
+    "attributes": [
+       ["oxAuthUmaScope"]
+    ],
+    "static" : [
+    ]
+  },
+
+
+  "__common__": {
+    "attributes":[
+    ],
+    "static":[
+    ]
+  }
+
+}
