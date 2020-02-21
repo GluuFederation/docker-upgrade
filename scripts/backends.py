@@ -133,8 +133,8 @@ class LDAPBackend(object):
             attrs = {}
 
             for k, v in entry.entry_attributes_as_dict.items():
-                if len(v) < 2:
-                    v = v[0]
+                # if len(v) < 2:
+                #     v = v[0]
                 attrs[k] = v
             return Entry(id_, attrs)
 
@@ -194,8 +194,8 @@ class LDAPBackend(object):
                 attrs = entry.entry_attributes_as_dict
 
                 for k, v in attrs.items():
-                    if len(v) < 2:
-                        v = v[0]
+                    # if len(v) < 2:
+                    #     v = v[0]
                     attrs[k] = v
                 yield Entry(id_, attrs)
 

@@ -47,7 +47,8 @@ class Upgrade41(object):
         should_upgrade = False
 
         try:
-            dynamic_conf = json.loads(entry.attrs["oxAuthConfDynamic"])
+            # from LDAP
+            dynamic_conf = json.loads(entry.attrs["oxAuthConfDynamic"][0])
         except TypeError:
             dynamic_conf = entry.attrs["oxAuthConfDynamic"]
 
@@ -70,7 +71,7 @@ class Upgrade41(object):
 
         if self.backend_type == "ldap":
             dynamic_conf = json.dumps(dynamic_conf)
-            ox_rev = str(int(entry.attrs["oxRevision"]) + 1)
+            ox_rev = str(int(entry.attrs["oxRevision"][0]) + 1)
         else:
             ox_rev = entry.attrs["oxRevision"] + 1
 
@@ -95,7 +96,7 @@ class Upgrade41(object):
 
         should_upgrade = False
         try:
-            app_conf = json.loads(entry.attrs["oxTrustConfApplication"])
+            app_conf = json.loads(entry.attrs["oxTrustConfApplication"][0])
         except TypeError:
             app_conf = entry.attrs["oxTrustConfApplication"]
 
@@ -108,7 +109,7 @@ class Upgrade41(object):
 
         if self.backend_type == "ldap":
             app_conf = json.dumps(app_conf)
-            ox_rev = str(int(entry.attrs["oxRevision"]) + 1)
+            ox_rev = str(int(entry.attrs["oxRevision"][0]) + 1)
         else:
             ox_rev = entry.attrs["oxRevision"] + 1
 
