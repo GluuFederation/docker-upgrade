@@ -46,10 +46,9 @@ class Upgrade41(object):
 
         should_upgrade = False
 
-        try:
-            # from LDAP
+        if self.backend_type == "ldap":
             dynamic_conf = json.loads(entry.attrs["oxAuthConfDynamic"][0])
-        except TypeError:
+        else:
             dynamic_conf = entry.attrs["oxAuthConfDynamic"]
 
         for method in ("tls_client_auth", "self_signed_tls_client_auth"):
@@ -95,9 +94,10 @@ class Upgrade41(object):
             return
 
         should_upgrade = False
-        try:
+        if self.backend_type == "ldap":
+            key = "ou=oxtrust,ou=configuration,o=gluu"
             app_conf = json.loads(entry.attrs["oxTrustConfApplication"][0])
-        except TypeError:
+        else:
             app_conf = entry.attrs["oxTrustConfApplication"]
 
         if "useLocalCache" not in app_conf:
