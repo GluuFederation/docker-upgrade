@@ -4,6 +4,7 @@ from collections import namedtuple
 
 from ldap3 import BASE
 from ldap3 import Connection
+from ldap3 import MODIFY_DELETE
 from ldap3 import MODIFY_REPLACE
 from ldap3 import Server
 from ldap3 import SUBTREE
@@ -140,11 +141,17 @@ class LDAPBackend(object):
 
     def modify_entry(self, key, attrs=None, **kwargs):
         attrs = attrs or {}
+        del_flag = kwargs.get("delete_attr", False)
+
+        if del_flag:
+            mod = MODIFY_DELETE
+        else:
+            mod = MODIFY_REPLACE
 
         for k, v in attrs.items():
             if not isinstance(v, list):
                 v = [v]
-            attrs[k] = [(MODIFY_REPLACE, v)]
+            attrs[k] = [(mod, v)]
 
         with self.conn as conn:
             conn.modify(key, attrs)
@@ -219,11 +226,18 @@ class CouchbaseBackend(object):
 
     def modify_entry(self, key, attrs=None, **kwargs):
         bucket = kwargs.get("bucket")
-        set_kv = "{}".format(
-            ",".join(["{}={}".format(k, json.dumps(v)) for k, v in attrs.items()])
-        )
+        del_flag = kwargs.get("delete_attr", False)
 
-        query = "UPDATE {} USE KEYS '{}' SET {}".format(bucket, key, set_kv)
+        if del_flag:
+            mod_kv = "UNSET {}".format(
+                ",".join([k for k, _ in attrs.items()])
+            )
+        else:
+            mod_kv = "SET {}".format(
+                ",".join(["{}={}".format(k, json.dumps(v)) for k, v in attrs.items()])
+            )
+
+        query = "UPDATE {} USE KEYS '{}' {}".format(bucket, key, mod_kv)
         req = self.client.exec_query(query)
         if req.ok:
             resp = req.json()

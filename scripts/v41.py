@@ -244,7 +244,52 @@ class Upgrade41(object):
         logger.info("Updating clients in persistence.")
         self.modify_clients()
 
+        logger.info("Updating base config in persistence.")
+        self.modify_config()
+
         if self.backend_type == "couchbase":
-            logger.info("Updating Couchbase indexes")
+            logger.info("Updating Couchbase indexes.")
             self.update_couchbase_indexes()
         return True
+
+    def modify_config(self):
+        if self.backend_type == "ldap":
+            key = "ou=configuration,o=gluu"
+            kwargs = {"delete_attr": True}
+        else:
+            key = "configuration"
+            kwargs = {"bucket": "gluu", "delete_attr": True}
+
+        entry = self.backend.get_entry(key, **kwargs)
+
+        if not entry:
+            return
+
+        should_upgrade = False
+
+        rm_attrs = (
+            "gluuFreeDiskSpace",
+            "gluuFreeMemory",
+            "gluuFreeSwap",
+            "gluuGroupCount",
+            "gluuIpAddress",
+            "gluuPersonCount",
+            "gluuSystemUptime",
+        )
+
+        attrs = {
+            attr: entry.attrs[attr] for attr in rm_attrs
+            if attr in entry.attrs
+        }
+
+        if attrs:
+            should_upgrade = True
+
+        if not should_upgrade:
+            return
+
+        self.backend.modify_entry(
+            entry.id,
+            attrs,
+            **kwargs
+        )
