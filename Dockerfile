@@ -1,7 +1,5 @@
 FROM openjdk:8-jre-alpine3.9
 
-LABEL maintainer="Gluu Inc. <support@gluu.org>"
-
 # ===============
 # Alpine packages
 # ===============
@@ -107,6 +105,14 @@ ENV GLUU_WAIT_MAX_TIME=300 \
 # ==========
 # misc stuff
 # ==========
+
+LABEL name="Upgrade" \
+    maintainer="Gluu Inc. <support@gluu.org>" \
+    vendor="Gluu Federation" \
+    version="4.1.1" \
+    release="01" \
+    summary="Upgrade" \
+    description="Upgrade static configuration and persistence data"
 
 RUN mkdir -p /etc/certs /etc/gluu/conf /app/tmp
 COPY scripts /app/scripts
