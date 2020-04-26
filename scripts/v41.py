@@ -246,6 +246,7 @@ class Upgrade41(object):
 
         logger.info("Updating base config in persistence.")
         self.modify_config()
+        self.add_document_store()
 
         if self.backend_type == "couchbase":
             logger.info("Updating Couchbase indexes.")
@@ -293,3 +294,45 @@ class Upgrade41(object):
             attrs,
             **kwargs
         )
+
+    def add_document_store(self):
+        if self.backend_type == "ldap":
+            key = "ou=configuration,o=gluu"
+            kwargs = {}
+        else:
+            key = "configuration"
+            kwargs = {"bucket": "gluu"}
+
+        entry = self.backend.get_entry(key, **kwargs)
+
+        if not entry:
+            return
+
+        if "oxDocumentStoreConfiguration" in entry.attrs:
+            return
+
+        doc_config = {
+            "documentStoreType": "LOCAL",
+            "localConfiguration": {
+                "baseLocation": "/",
+            },
+            "jcaConfiguration": {
+                "serverUrl": "http://localhost:8080/rmi",
+                "workspaceName": "default",
+                "connectionTimeout": 15,
+                "userId": "admin",
+                "password": "",
+            },
+            "webDavConfiguration": None,
+        }
+
+        if self.backend_type == "ldap":
+            doc_config = json.dumps(doc_config)
+
+        modified, err = self.backend.modify_entry(
+            entry.id,
+            {"oxDocumentStoreConfiguration": doc_config},
+            **kwargs
+        )
+        if not modified:
+            logger.warn("Unable to modify entry; reason={}".format(err))
