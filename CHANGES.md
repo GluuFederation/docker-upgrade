@@ -2,6 +2,12 @@
 
 Here you can see an overview of changes between each release.
 
+## Version 4.1.1_03
+
+Released on April 29th, 2020.
+
+* Added DocumentStore support.
+
 ## Version 4.1.1_02
 
 Released on April 2nd, 2020.
