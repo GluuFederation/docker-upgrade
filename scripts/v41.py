@@ -345,7 +345,7 @@ class Upgrade41(object):
             key = "inum=EC3A,ou=attributes,o=gluu"
             kwargs = {}
         else:
-            key = "EC3A_attributes"
+            key = "attributes_EC3A"
             kwargs = {"bucket": "gluu"}
 
         entry = self.backend.get_entry(key, **kwargs)
