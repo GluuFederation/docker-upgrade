@@ -251,6 +251,9 @@ class Upgrade41(object):
         if self.backend_type == "couchbase":
             logger.info("Updating Couchbase indexes.")
             self.update_couchbase_indexes()
+
+        logger.info("Updating attributes in persistence.")
+        self.modify_picture_attribute()
         return True
 
     def modify_config(self):
@@ -336,3 +339,31 @@ class Upgrade41(object):
         )
         if not modified:
             logger.warn("Unable to modify entry; reason={}".format(err))
+
+    def modify_picture_attribute(self):
+        if self.backend_type == "ldap":
+            key = "inum=EC3A,ou=attributes,o=gluu"
+            kwargs = {}
+        else:
+            key = "EC3A_attributes"
+            kwargs = {"bucket": "gluu"}
+
+        entry = self.backend.get_entry(key, **kwargs)
+
+        if not entry:
+            return
+
+        should_upgrade = False
+
+        if entry.attrs["gluuAttributeType"] != "string":
+            entry.attrs["gluuAttributeType"] = "string"
+            should_upgrade = True
+
+        if not should_upgrade:
+            return
+
+        self.backend.modify_entry(
+            entry.id,
+            {"gluuAttributeType": entry.attrs["gluuAttributeType"]},
+            **kwargs
+        )
