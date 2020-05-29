@@ -68,7 +68,7 @@ class Upgrade316(object):
         logger.info("Updating oxIDP client in LDAP.")
         ok, _ = self.backend.modify_entry(
             oxidp_entry.entry_dn,
-            # {k: v for k, v in mod_data.iteritems()},
+            # {k: v for k, v in mod_data.items()},
             mod_data,
         )
 

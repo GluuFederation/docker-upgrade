@@ -52,7 +52,7 @@ class LegacyLDAPBackend(object):
         with self.conn as conn:
             conn.modify(
                 key,
-                {k: [(MODIFY_REPLACE, v)] for k, v in attrs.iteritems()}
+                {k: [(MODIFY_REPLACE, v)] for k, v in attrs.items()}
             )
             return bool(conn.result["description"] == "success"), conn.result["message"]
 

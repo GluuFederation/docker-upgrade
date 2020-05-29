@@ -62,7 +62,7 @@ class Upgrade315(object):
                 "disableFido2": True,
             },
         }
-        new_attrs = {k: v for k, v in add_attrs.iteritems() if k not in dynamic_conf}
+        new_attrs = {k: v for k, v in add_attrs.items() if k not in dynamic_conf}
 
         if new_attrs:
             dynamic_conf.update(new_attrs)
@@ -225,7 +225,7 @@ class Upgrade315(object):
             "gluuGroupVisibility": ["private"],
         }
         new_attrs = {
-            k: v for k, v in add_attrs.iteritems()
+            k: v for k, v in add_attrs.items()
             if k not in entry.entry_attributes_as_dict
         }
 
@@ -302,7 +302,7 @@ class Upgrade315(object):
         add_attrs = {
             "loggingLevel": "INFO",
         }
-        new_attrs = {k: v for k, v in add_attrs.iteritems() if k not in conf}
+        new_attrs = {k: v for k, v in add_attrs.items() if k not in conf}
 
         if new_attrs:
             conf.update(new_attrs)
