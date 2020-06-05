@@ -2,6 +2,13 @@
 
 Here you can see an overview of changes between each release.
 
+## Version 4.1.1_04
+
+Released on June 5th, 2020.
+
+* Upgraded `oxauth-client`.
+* Added feature to update picture attribute.
+
 ## Version 4.1.1_03
 
 Released on April 29th, 2020.
