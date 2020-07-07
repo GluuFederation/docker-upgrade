@@ -77,17 +77,17 @@ class Upgrade40(object):
 
     def add_extra_entries(self):
         # radius scripts
-        with open("/app/templates/v4/super_gluu_ro.py") as f:
+        with open("/app/templates/v4.0/super_gluu_ro.py") as f:
             super_gluu_ro_script = generate_base64_contents(f.read())
 
-        with open("/app/templates/v4/super_gluu_ro_session.py") as f:
+        with open("/app/templates/v4.0/super_gluu_ro_session.py") as f:
             super_gluu_ro_session_script = generate_base64_contents(f.read())
 
         # casa scripts
-        with open("/app/templates/v4/person_authentication_casa.py") as f:
+        with open("/app/templates/v4.0/person_authentication_casa.py") as f:
             person_authentication_casa = generate_base64_contents(f.read())
 
-        with open("/app/templates/v4/client_registration_casa.py") as f:
+        with open("/app/templates/v4.0/client_registration_casa.py") as f:
             client_registration_casa = generate_base64_contents(f.read())
 
         ctx = {
@@ -102,7 +102,7 @@ class Upgrade40(object):
             "client_registration_casa": client_registration_casa,
         }
 
-        with open("/app/templates/v4/extra_entries.ldif") as f:
+        with open("/app/templates/v4.0/extra_entries.ldif") as f:
             txt = f.read() % ctx
 
             with open("/tmp/extra_entries.ldif", "w") as fw:
@@ -289,5 +289,4 @@ class Upgrade40(object):
 
         logger.info("Adding misc LDAP entries")
         self.add_extra_entries()
-
         return True

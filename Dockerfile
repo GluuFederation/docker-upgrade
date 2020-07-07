@@ -13,8 +13,8 @@ RUN apk update \
 # =============
 
 # JAR files required to generate OpenID Connect keys
-ENV GLUU_VERSION=4.2.0-SNAPSHOT \
-    GLUU_BUILD_DATE="2020-05-08 20:27"
+ARG GLUU_VERSION=4.2.0-SNAPSHOT
+ARG GLUU_BUILD_DATE="2020-07-06 16:32"
 
 RUN mkdir -p /app/javalibs \
     && wget -q https://ox.gluu.org/maven/org/gluu/oxauth-client/${GLUU_VERSION}/oxauth-client-${GLUU_VERSION}-jar-with-dependencies.jar -O /app/javalibs/oxauth-client.jar
@@ -112,6 +112,7 @@ LABEL name="Upgrade" \
 RUN mkdir -p /etc/certs /etc/gluu/conf /app/tmp
 COPY scripts /app/scripts
 COPY templates /app/templates
+COPY static /app/static
 
 RUN chmod +x /app/scripts/entrypoint.sh
 ENTRYPOINT ["tini", "-g", "--", "sh", "/app/scripts/entrypoint.sh"]
