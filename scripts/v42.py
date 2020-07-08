@@ -45,6 +45,20 @@ def merge_extension_ctx(ctx):
     return ctx
 
 
+def merge_fido2_ctx(ctx):
+    with open("/app/templates/v4.2/fido2-dynamic-conf.json") as f:
+        dyn_conf = generate_base64_contents(f.read() % ctx)
+
+    with open("/app/templates/v4.2/fido2-static-conf.json") as f:
+        static_conf = generate_base64_contents(f.read())
+
+    ctx.update({
+        "fido2_dynamic_conf_base64": dyn_conf,
+        "fido2_static_conf_base64": static_conf,
+    })
+    return ctx
+
+
 class Upgrade42:
     def __init__(self, manager):
         self.manager = manager
@@ -80,7 +94,13 @@ class Upgrade42:
             self.backend.modify_entry(entry.id, entry.attrs, **{"bucket": "gluu"})
 
     def add_new_entries(self):
-        ctx = merge_extension_ctx({})
+        ctx = {}
+        ctx = merge_extension_ctx(ctx)
+
+        ctx["hostname"] = self.manager.config.get("hostname")
+        ctx["fido2ConfigFolder"] = self.manager.config.get("fido2ConfigFolder")
+        ctx = merge_fido2_ctx(ctx)
+
         src = "/app/templates/v4.2/extra_entries.ldif"
         dst = "/app/tmp/extra_entries.ldif"
         render_ldif(src, dst, ctx)
@@ -92,15 +112,16 @@ class Upgrade42:
 
         parser = LDIFParser(open(dst, "rb"))
         for dn, entry in parser.parse():
-            if self.backend_type == "ldap":
-                logger.info(self.backend.add_entry(dn, entry))
-            else:
+            if self.backend_type != "ldap":
                 if len(entry) <= 2:
                     continue
+
                 entry["dn"] = [dn]
                 entry = transform_entry(entry, attr_processor)
                 dn = get_key_from(dn)
-                logger.info(self.backend.add_entry(dn, entry, **{"bucket": "gluu"}))
+
+            # save to backend
+            self.backend.add_entry(dn, entry, **{"bucket": "gluu"})
 
     def modify_oxauth_config(self):
         key = "ou=oxauth,ou=configuration,o=gluu"
@@ -115,10 +136,9 @@ class Upgrade42:
 
         # DYNAMIC CONF
 
+        dynamic_conf = entry.attrs["oxAuthConfDynamic"]
         if self.backend_type == "ldap":
-            dynamic_conf = json.loads(entry.attrs["oxAuthConfDynamic"])
-        else:
-            dynamic_conf = entry.attrs["oxAuthConfDynamic"]
+            dynamic_conf = json.loads(dynamic_conf)
 
         new_attrs = {
             "backchannelAuthenticationEndpoint": f"https://{hostname}/oxauth/restv1/bc-authorize",
@@ -160,20 +180,10 @@ class Upgrade42:
 
         dynamic_conf["uiLocalesSupported"] = ["en", "bg", "de", "es", "fr", "it", "ru", "tr"]
 
-        if self.backend_type == "ldap":
-            entry.attrs["oxAuthConfDynamic"] = json.dumps(dynamic_conf)
-        else:
-            entry.attrs["oxAuthConfDynamic"] = dynamic_conf
-
         # STATIC CONF
 
         with open("/app/templates/v4.2/oxauth-static-conf.json") as f:
             static_conf = json.loads(f.read())
-
-        if self.backend_type == "ldap":
-            entry.attrs["oxAuthConfStatic"] = json.dumps(static_conf)
-        else:
-            entry.attrs["oxAuthConfStatic"] = static_conf
 
         # ERRORS CONF
 
@@ -181,10 +191,24 @@ class Upgrade42:
             errors_conf = json.loads(f.read())
 
         if self.backend_type == "ldap":
-            entry.attrs["oxAuthConfErrors"] = json.dumps(errors_conf)
-        else:
-            entry.attrs["oxAuthConfErrors"] = errors_conf
-        self.backend.modify_entry(entry.id, entry.attrs, **{"bucket": "gluu"})
+            dynamic_conf = json.dumps(dynamic_conf)
+            static_conf = json.dumps(static_conf)
+            errors_conf = json.dumps(errors_conf)
+
+        # increment it to auto-reload related ox apps
+        ox_rev = entry.attrs["oxRevision"] + 1
+
+        # save to backend
+        self.backend.modify_entry(
+            entry.id,
+            {
+                "oxAuthConfDynamic": dynamic_conf,
+                "oxAuthConfStatic": static_conf,
+                "oxAuthConfErrors": errors_conf,
+                "oxRevision": ox_rev,
+            },
+            **{"bucket": "gluu"},
+        )
 
     def modify_oxidp_config(self):
         key = "ou=oxidp,ou=configuration,o=gluu"
@@ -195,20 +219,24 @@ class Upgrade42:
         if not entry:
             return
 
+        conf = entry.attrs["oxConfApplication"]
         if self.backend_type == "ldap":
-            conf = json.loads(entry.attrs["oxConfApplication"])
-        else:
-            conf = entry.attrs["oxConfApplication"]
+            conf = json.loads(conf)
 
         if "scriptDn" not in conf:
             conf["scriptDn"] = "ou=scripts,o=gluu"
 
         if self.backend_type == "ldap":
-            entry.attrs["oxConfApplication"] = json.dumps(conf)
-        else:
-            entry.attrs["oxConfApplication"] = conf
-        # self.backend.modify_entry(entry.id, entry.attrs, **{"bucket": "gluu"})
-        logger.info(conf)
+            conf = json.dumps(conf)
+
+        # increment it to auto-reload related ox apps
+        ox_rev = entry.attrs["oxRevision"] + 1
+
+        self.backend.modify_entry(
+            entry.id,
+            {"oxConfApplication": conf, "oxRevision": ox_rev},
+            **{"bucket": "gluu"},
+        )
 
     def modify_oxtrust_config(self):
         key = "ou=oxtrust,ou=configuration,o=gluu"
@@ -223,10 +251,9 @@ class Upgrade42:
 
         # dynamic
 
+        conf = entry.attrs["oxTrustConfApplication"]
         if self.backend_type == "ldap":
-            conf = json.loads(entry.attrs["oxTrustConfApplication"])
-        else:
-            conf = entry.attrs["oxTrustConfApplication"]
+            conf = json.loads(conf)
 
         new_attrs = {
             "loggingLayout": "text",
@@ -242,17 +269,48 @@ class Upgrade42:
                 conf[k] = v
 
         if self.backend_type == "ldap":
-            entry.attrs["oxTrustConfApplication"] = json.dumps(conf)
-        else:
-            entry.attrs["oxTrustConfApplication"] = conf
-        self.backend.modify_entry(entry.id, entry.attrs, **{"bucket": "gluu"})
+            conf = json.dumps(conf)
 
-        # @TODO: conf for cache-refresh
+        # cache-refresh
+
+        cr_conf = entry.attrs["oxTrustConfCacheRefresh"]
+        if self.backend_type == "ldap":
+            cr_conf = json.loads(cr_conf)
+
+        if "defaultInumServer" not in conf:
+            cr_conf["defaultInumServer"] = True
+
+        if self.backend_type == "ldap":
+            cr_conf = json.dumps(cr_conf)
+
+        # increment it to auto-reload related ox apps
+        ox_rev = entry.attrs["oxRevision"] + 1
+
+        self.backend.modify_entry(
+            entry.id,
+            {
+                "oxTrustConfApplication": conf,
+                "oxTrustConfCacheRefresh": cr_conf,
+                "oxRevision": ox_rev,
+            },
+            **{"bucket": "gluu"},
+        )
 
     def run_upgrade(self):
-        # self.modify_attributes()
-        # self.add_new_entries()
-        # self.modify_oxauth_config()
-        # self.modify_oxidp_config()
-        # self.modify_oxtrust_config()
-        return False
+        logger.info("Updating attributes in persistence.")
+        self.modify_attributes()
+
+        logger.info("Updating misc entries in persistence.")
+        self.add_new_entries()
+
+        logger.info("Updating oxAuth config in persistence.")
+        self.modify_oxauth_config()
+
+        logger.info("Updating oxIdp config in persistence.")
+        self.modify_oxidp_config()
+
+        logger.info("Updating oxTrust config in persistence.")
+        self.modify_oxtrust_config()
+
+        # mark as succeed
+        return True

@@ -12,7 +12,7 @@ gluuAttributeType: string
 gluuAttributeViewType: admin
 gluuAttributeViewType: user
 gluuStatus: active
-inum: 11AA
+inum: 12AA
 objectClass: top
 objectClass: gluuAttribute
 urn: urn:mace:dir:attribute-def:oxAuthBackchannelDeviceRegistrationToken
@@ -116,3 +116,14 @@ oxRevision: 1
 oxScript::%(ciba_end_user_notification)s
 oxScriptType: ciba_end_user_notification
 programmingLanguage: python
+
+# ==========================
+# taken from v4.2 fido2.ldif
+# ==========================
+dn: ou=fido2,ou=configuration,o=gluu
+objectClass: gluuApplicationConfiguration
+objectClass: top
+ou: fido2
+gluuConfDynamic::%(fido2_dynamic_conf_base64)s
+gluuConfStatic::%(fido2_static_conf_base64)s
+oxRevision: 1
