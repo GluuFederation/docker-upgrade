@@ -99,6 +99,8 @@ class Upgrade42:
 
         ctx["hostname"] = self.manager.config.get("hostname")
         ctx["fido2ConfigFolder"] = self.manager.config.get("fido2ConfigFolder")
+        ctx["oxd_hostname"] = "localhost"
+        ctx["oxd_port"] = 8443
         ctx = merge_fido2_ctx(ctx)
 
         src = "/app/templates/v4.2/extra_entries.ldif"
@@ -296,12 +298,40 @@ class Upgrade42:
             **{"bucket": "gluu"},
         )
 
+    def modify_base_config(self):
+        key = "ou=configuration,o=gluu"
+        if self.backend_type != "ldap":
+            key = get_key_from(key)
+
+        entry = self.backend.get_entry(key, **{"bucket": "gluu"})
+        if not entry:
+            return
+
+        conf = entry.attrs["oxCacheConfiguration"]
+        if self.backend_type == "ldap":
+            conf = json.loads(conf)
+
+        if "baseDn" not in conf["nativePersistenceConfiguration"]:
+            conf["nativePersistenceConfiguration"]["baseDn"] = "o=gluu"
+
+        if self.backend_type == "ldap":
+            conf = json.dumps(conf)
+
+        self.backend.modify_entry(
+            entry.id,
+            {"oxCacheConfiguration": conf},
+            **{"bucket": "gluu"},
+        )
+
     def run_upgrade(self):
         logger.info("Updating attributes in persistence.")
         self.modify_attributes()
 
         logger.info("Updating misc entries in persistence.")
         self.add_new_entries()
+
+        # logger.info("Updating base config in persistence.")
+        # self.modify_base_config()
 
         logger.info("Updating oxAuth config in persistence.")
         self.modify_oxauth_config()
