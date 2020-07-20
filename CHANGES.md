@@ -2,6 +2,21 @@
 
 Here you can see an overview of changes between each release.
 
+## Version 4.2.0_01
+
+Released on July 20th, 2020.
+
+* Added support for Gluu Server v4.2.
+* Upraded to Java 11.
+* Upgraded to Python3.
+
+## Version 4.1.1_04
+
+Released on June 5th, 2020.
+
+* Upgraded `oxauth-client`.
+* Added feature to update picture attribute.
+
 ## Version 4.1.1_03
 
 Released on April 29th, 2020.
