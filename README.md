@@ -7,7 +7,7 @@ This will be run as a job in Kubernetes or separate container in Docker. It will
 ## Versions
 
 - Stable: `gluufederation/upgrade:4.2.0_01`
-- Unstable: `gluufederation/upgrade:4.2.0_dev`
+- Unstable: `gluufederation/upgrade:4.2.1_dev`
 
 Refer to [Changelog](./CHANGES.md) for details on new features, bug fixes, or older releases.
 
