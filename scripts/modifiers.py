@@ -301,7 +301,7 @@ class ApplianceModifier(Modifier):
             "cleanServiceBatchChunkSize": 1000,
         }
 
-        for k, v in new_attrs.iteritems():
+        for k, v in new_attrs.items():
             if k in dynamic_conf:
                 continue
             dynamic_conf[k] = v

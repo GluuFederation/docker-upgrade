@@ -2,8 +2,4 @@
 
 set -e
 
-if [ -f /etc/redhat-release ]; then
-    source scl_source enable python27 && python /app/scripts/entrypoint.py "$@"
-else
-    python /app/scripts/entrypoint.py "$@"
-fi
+exec python3 /app/scripts/entrypoint.py "$@"

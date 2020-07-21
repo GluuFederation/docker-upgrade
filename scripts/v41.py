@@ -166,12 +166,12 @@ class Upgrade41(object):
 
             if persistence_type != "couchbase":
                 bucket_mappings = OrderedDict({
-                    name: mapping for name, mapping in bucket_mappings.iteritems()
+                    name: mapping for name, mapping in bucket_mappings.items()
                     if name != ldap_mapping
                 })
             return bucket_mappings
 
-        buckets = [mapping["bucket"] for _, mapping in get_bucket_mappings().iteritems()]
+        buckets = [mapping["bucket"] for _, mapping in get_bucket_mappings().items()]
 
         with open("/app/templates/v4.1/couchbase_index.json") as f:
             indexes = json.loads(f.read())

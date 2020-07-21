@@ -12,6 +12,7 @@ from settings import LOGGING_CONFIG
 # from v316 import Upgrade316
 from v40 import Upgrade40
 from v41 import Upgrade41
+from v42 import Upgrade42
 
 logging.config.dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger("entrypoint")
@@ -22,6 +23,7 @@ SUPPORTED_VERSIONS = [
     # "3.1.6",
     "4.0",
     "4.1",
+    "4.2",
 ]
 
 # current version is the latest supported version
@@ -32,6 +34,7 @@ UPGRADER_CLASSES = {
     # "3.1.6": Upgrade316,
     "4.0": Upgrade40,
     "4.1": Upgrade41,
+    "4.2": Upgrade42,
 }
 
 
@@ -76,7 +79,7 @@ def main():
         upgrader = upgrader_class(manager)
         logger.info("Step {}: upgrading {} to {}".format(step + 1, prev_version, upgrader.version))
         if not upgrader.run_upgrade():
-            logger.warn("Unable to upgrade version from {} to {}".format(prev_version, upgrader.version))
+            logger.warning("Unable to upgrade version from {} to {}".format(prev_version, upgrader.version))
             return
         prev_version = upgrader.version
 

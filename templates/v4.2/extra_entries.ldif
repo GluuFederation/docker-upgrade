@@ -1,0 +1,138 @@
+# ===============================
+# taken from v4.2 attributes.ldif
+# ===============================
+dn: inum=11AA,ou=attributes,o=gluu
+description: CIBA Device Registration Token
+displayName: CIBA Device Registration Token
+gluuAttributeEditType: admin
+gluuAttributeEditType: user
+gluuAttributeName: oxAuthBackchannelDeviceRegistrationToken
+gluuAttributeOrigin: gluuPerson
+gluuAttributeType: string
+gluuAttributeViewType: admin
+gluuAttributeViewType: user
+gluuStatus: active
+inum: 12AA
+objectClass: top
+objectClass: gluuAttribute
+urn: urn:mace:dir:attribute-def:oxAuthBackchannelDeviceRegistrationToken
+
+dn: inum=11AB,ou=attributes,o=gluu
+description: CIBA User code
+displayName: CIBA User code
+gluuAttributeEditType: admin
+gluuAttributeEditType: user
+gluuAttributeName: oxAuthBackchannelUserCode
+gluuAttributeOrigin: gluuPerson
+gluuAttributeType: string
+gluuAttributeViewType: admin
+gluuAttributeViewType: user
+gluuStatus: active
+inum: 11AB
+objectClass: top
+objectClass: gluuAttribute
+urn: urn:mace:dir:attribute-def:oxAuthBackchannelUserCode
+
+# =========================
+# taken from v4.2 base.ldif
+# =========================
+dn: ou=sessions,o=gluu
+objectClass: top
+objectClass: organizationalUnit
+ou: sessions
+
+# CIBA Requests - LEVEL 2
+dn: ou=ciba,o=gluu
+objectClass: top
+objectClass: organizationalunit
+ou: ciba
+
+# ===========================
+# taken from v4.2 scopes.ldif
+# ===========================
+dn: inum=7D90,ou=scopes,o=gluu
+defaultScope: false
+description: revoke_session scope which is required to be able call /revoke_session endpoint
+oxId: revoke_session
+displayName: revoke_session
+inum: 7D90
+objectClass: oxAuthCustomScope
+objectClass: top
+oxScopeType: openid
+
+# ============================
+# taken from v4.2 scripts.ldif
+# ============================
+dn: inum=2DAF-CA90,ou=scripts,o=gluu
+objectClass: top
+objectClass: oxCustomScript
+description: Frontchannel logout Sample
+displayName: frontchannel_logout_sample
+oxEnabled: false
+inum: 2DAF-CA90
+oxLevel: 1
+oxRevision: 1
+oxModuleProperty: {"value1":"location_type","value2":"ldap","description":""}
+oxScript::%(end_session_end_session)s
+oxScriptType: end_session
+programmingLanguage: python
+
+dn: inum=8AF7.D82A,ou=scripts,o=gluu
+objectClass: oxCustomScript
+objectClass: top
+displayName: persistence_extension
+inum: 8AF7.D82A
+oxEnabled: false
+oxLevel: 100
+oxModuleProperty: {"value1":"location_type","value2":"ldap","description":""}
+oxRevision: 19
+oxScript::%(persistence_extension_samplescript)s
+oxScriptType: persistence_extension
+programmingLanguage: python
+
+dn: inum=8AF7.D82B,ou=scripts,o=gluu
+objectClass: oxCustomScript
+objectClass: top
+displayName: idp
+inum: 8AF7.D82B
+oxEnabled: false
+oxLevel: 100
+oxModuleProperty: {"value1":"location_type","value2":"ldap","description":""}
+oxRevision: 1
+oxScript::%(idp_samplescript)s
+oxScriptType: idp
+programmingLanguage: python
+
+dn: inum=C1BA-C1BA,ou=scripts,o=gluu
+objectClass: top
+objectClass: oxCustomScript
+description: Firebase notification sender
+displayName: firebase_ciba_end_user_notification
+oxEnabled: false
+inum: C1BA-C1BA
+oxLevel: 10
+oxModuleProperty: {"value1":"location_type","value2":"ldap","description":""}
+oxRevision: 1
+oxScript::%(ciba_end_user_notification)s
+oxScriptType: ciba_end_user_notification
+programmingLanguage: python
+
+# ==========================
+# taken from v4.2 fido2.ldif
+# ==========================
+dn: ou=fido2,ou=configuration,o=gluu
+objectClass: gluuApplicationConfiguration
+objectClass: top
+ou: fido2
+gluuConfDynamic::%(fido2_dynamic_conf_base64)s
+gluuConfStatic::%(fido2_static_conf_base64)s
+oxRevision: 1
+
+# =========================
+# taken from v4.2 casa.ldif
+# =========================
+dn: ou=casa,ou=configuration,o=gluu
+objectClass: top
+objectClass: oxApplicationConfiguration
+ou: casa
+oxConfApplication: {"enable_pass_reset" : true, "oxd_config" : {"host": "%(oxd_hostname)s", "port": %(oxd_port)s, "frontchannel_logout_uri" : "https://%(hostname)s/casa/autologout", "post_logout_uri" : "https://%(hostname)s/casa/bye.zul", "authz_redirect_uri" : "https://%(hostname)s/casa"}, "log_level" : "INFO"}
