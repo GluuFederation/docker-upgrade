@@ -14,7 +14,7 @@ RUN apk update \
 
 # JAR files required to generate OpenID Connect keys
 ARG GLUU_VERSION=4.2.1-SNAPSHOT
-ARG GLUU_BUILD_DATE="2020-07-30 15:01"
+ARG GLUU_BUILD_DATE="2020-08-07 16:01"
 
 RUN mkdir -p /app/javalibs \
     && wget -q https://ox.gluu.org/maven/org/gluu/oxauth-client/${GLUU_VERSION}/oxauth-client-${GLUU_VERSION}-jar-with-dependencies.jar -O /app/javalibs/oxauth-client.jar
