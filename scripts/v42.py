@@ -174,13 +174,19 @@ class Upgrade42:
                 "notificationKey": "",
                 "publicVapidKey": ""
             },
+            "deviceAuthorizationEndpoint": f"https://%(hostname)s/oxauth/restv1/device-authorization",
+            "deviceAuthzRequestExpiresIn": 1800,
+            "deviceAuthzTokenPollInterval": 5,
+            "deviceAuthzResponseTypeToProcessAuthz": "code",
         }
 
         for k, v in new_attrs.items():
             if k not in dynamic_conf:
                 dynamic_conf[k] = v
 
-        dynamic_conf["uiLocalesSupported"] = ["en", "bg", "de", "es", "fr", "it", "ru", "tr"]
+        dynamic_conf["uiLocalesSupported"] = dynamic_conf["uiLocalesSupported"] + ["bg", "de", "fr", "it", "ru", "tr"]
+        dynamic_conf["grantTypesSupported"] = dynamic_conf["grantTypesSupported"] + ["urn:ietf:params:oauth:grant-type:device_code"]
+        dynamic_conf["dynamicGrantTypeDefault"] = dynamic_conf["dynamicGrantTypeDefault"] + ["urn:ietf:params:oauth:grant-type:device_code"]
 
         # STATIC CONF
 
