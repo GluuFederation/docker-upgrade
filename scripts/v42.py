@@ -427,10 +427,47 @@ class Upgrade42:
                             continue
                         logger.warning(f"Failed to execute query, reason={error['msg']}")
 
+    def _modify_opendj_indexes(self):
+        def require_site():
+            GLUU_PERSISTENCE_TYPE = os.environ.get("GLUU_PERSISTENCE_TYPE", "ldap")
+            GLUU_PERSISTENCE_LDAP_MAPPING = os.environ.get("GLUU_PERSISTENCE_LDAP_MAPPING", "default")
+
+            if GLUU_PERSISTENCE_TYPE == "ldap":
+                return True
+            if GLUU_PERSISTENCE_TYPE == "hybrid" and GLUU_PERSISTENCE_LDAP_MAPPING == "site":
+                return True
+            return False
+
+        with open("/app/templates/v4.2/opendj_index.json") as f:
+            data = json.load(f)
+
+        backends = ["userRoot"]
+        if require_site():
+            backends.append("site")
+
+        for attr_map in data:
+            for backend in attr_map["backend"]:
+                if backend not in backends:
+                    continue
+
+                dn = f"ds-cfg-attribute={attr_map['attribute']},cn=Index,ds-cfg-backend-id={backend},cn=Backends,cn=config"
+                attrs = {
+                    'objectClass': ['top', 'ds-cfg-backend-index'],
+                    'ds-cfg-attribute': [attr_map['attribute']],
+                    'ds-cfg-index-type': attr_map['index'],
+                    'ds-cfg-index-entry-limit': ['4000']
+                }
+
+                # save to backend
+                self.backend.add_entry(dn, attrs, **{"bucket": "gluu"})
+
     def modify_indexes(self):
         if self.backend_type == "couchbase":
             logger.info("Updating Couchbase indexes.")
             self._modify_couchbase_indexes()
+        else:
+            logger.info("Updating OpenDJ indexes.")
+            self._modify_opendj_indexes()
 
     def run_upgrade(self):
         logger.info("Updating attributes in persistence.")
