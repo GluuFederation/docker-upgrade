@@ -1,6 +1,7 @@
 import logging
 import json
 import os
+from collections import OrderedDict
 
 from ldif3 import LDIFParser
 
@@ -329,6 +330,108 @@ class Upgrade42:
             **{"bucket": "gluu"},
         )
 
+    def _modify_couchbase_indexes(self):
+        def get_bucket_mappings():
+            bucket_mappings = OrderedDict({
+                "default": {
+                    "bucket": "gluu",
+                },
+                "user": {
+                    "bucket": "gluu_user",
+                },
+                "site": {
+                    "bucket": "gluu_site",
+                },
+                "token": {
+                    "bucket": "gluu_token",
+                },
+                "cache": {
+                    "bucket": "gluu_cache",
+                },
+                "session": {
+                    "bucket": "gluu_session",
+                },
+            })
+
+            persistence_type = os.environ.get("GLUU_PERSISTENCE_TYPE", "ldap")
+            ldap_mapping = os.environ.get("GLUU_PERSISTENCE_LDAP_MAPPING", "default")
+
+            if persistence_type != "couchbase":
+                bucket_mappings = OrderedDict({
+                    name: mapping for name, mapping in bucket_mappings.items()
+                    if name != ldap_mapping
+                })
+            return bucket_mappings
+
+        buckets = [mapping["bucket"] for _, mapping in get_bucket_mappings().items()]
+
+        with open("/app/templates/v4.2/couchbase_index.json") as f:
+            txt = f.read().replace("!bucket_prefix!", "gluu")
+            indexes = json.loads(txt)
+
+        for bucket in buckets:
+            if bucket not in indexes:
+                continue
+
+            query_file = "/app/tmp/index_{}.n1ql".format(bucket)
+
+            with open(query_file, "w") as f:
+                index_list = indexes.get(bucket, {})
+                index_names = []
+
+                for index in index_list.get("attributes", []):
+                    if '(' in ''.join(index):
+                        attr_ = index[0]
+                        index_name_ = index[0].replace('(', '_').replace(')', '_').replace('`', '').lower()
+                        if index_name_.endswith('_'):
+                            index_name_ = index_name_[:-1]
+                        index_name = 'def_{0}_{1}'.format(bucket, index_name_)
+                    else:
+                        attr_ = ','.join(['`{}`'.format(a) for a in index])
+                        index_name = "def_{0}_{1}".format(bucket, '_'.join(index))
+
+                    f.write('CREATE INDEX %s ON `%s`(%s) USING GSI WITH {"defer_build":true};\n' % (index_name, bucket, attr_))
+                    index_names.append(index_name)
+
+                if index_names:
+                    f.write('BUILD INDEX ON `%s` (%s) USING GSI;\n' % (bucket, ', '.join(index_names)))
+
+                sic = 1
+                for attribs, wherec in index_list.get("static", []):
+                    attrquoted = []
+
+                    for a in attribs:
+                        if '(' not in a:
+                            attrquoted.append('`{}`'.format(a))
+                        else:
+                            attrquoted.append(a)
+                    attrquoteds = ', '.join(attrquoted)
+
+                    f.write('CREATE INDEX `{0}_static_{1:02d}` ON `{0}`({2}) WHERE ({3})\n'.format(bucket, sic, attrquoteds, wherec))
+                    sic += 1
+
+            # exec query
+            with open(query_file) as f:
+                for line in f:
+                    query = line.strip()
+                    if not query:
+                        continue
+
+                    req = self.client.exec_query(query)
+                    if not req.ok:
+                        # the following code should be ignored
+                        # - 4300: index already exists
+                        # - 5000: index already built
+                        error = req.json()["errors"][0]
+                        if error["code"] in (4300, 5000):
+                            continue
+                        logger.warning(f"Failed to execute query, reason={error['msg']}")
+
+    def modify_indexes(self):
+        if self.backend_type == "couchbase":
+            logger.info("Updating Couchbase indexes.")
+            self._modify_couchbase_indexes()
+
     def run_upgrade(self):
         logger.info("Updating attributes in persistence.")
         self.modify_attributes()
@@ -347,6 +450,8 @@ class Upgrade42:
 
         logger.info("Updating oxTrust config in persistence.")
         self.modify_oxtrust_config()
+
+        self.modify_indexes()
 
         # mark as succeed
         return True
