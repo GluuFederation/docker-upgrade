@@ -469,6 +469,40 @@ class Upgrade42:
             logger.info("Updating OpenDJ indexes.")
             self._modify_opendj_indexes()
 
+    def modify_scopes(self):
+        scopes = [
+            "F0C4",
+            "43F1",
+            "764C",
+            "C17A",
+            "D491",
+            "341A",
+            "10B2",
+            "6D99",
+            "6D90",
+            "7D90",
+            "8A01",
+            "C4F5",
+        ]
+        keys = [f"inum={inum},ou=scopes,o=gluu" for inum in scopes]
+        if self.backend_type == "couchbase":
+            keys = [get_key_from(key) for key in keys]
+
+        ox_attrs = {
+            "spontaneousClientId": "",
+            "spontaneousClientScopes": [],
+            "showInConfigurationEndpoint": True,
+        }
+        if self.backend_type == "ldap":
+            ox_attrs = json.dumps(ox_attrs)
+
+        for id_ in keys:
+            self.backend.modify_entry(
+                id_,
+                {"oxAttributes": ox_attrs},
+                **{"bucket": "gluu"}
+            )
+
     def run_upgrade(self):
         logger.info("Updating attributes in persistence.")
         self.modify_attributes()
@@ -489,6 +523,9 @@ class Upgrade42:
         self.modify_oxtrust_config()
 
         self.modify_indexes()
+
+        logger.info("Updating scopes in persistence.")
+        self.modify_scopes()
 
         # mark as succeed
         return True
