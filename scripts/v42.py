@@ -417,7 +417,7 @@ class Upgrade42:
                     if not query:
                         continue
 
-                    req = self.client.exec_query(query)
+                    req = self.backend.client.exec_query(query)
                     if not req.ok:
                         # the following code should be ignored
                         # - 4300: index already exists
@@ -510,8 +510,8 @@ class Upgrade42:
         logger.info("Updating misc entries in persistence.")
         self.add_new_entries()
 
-        # logger.info("Updating base config in persistence.")
-        # self.modify_base_config()
+        logger.info("Updating base config in persistence.")
+        self.modify_base_config()
 
         logger.info("Updating oxAuth config in persistence.")
         self.modify_oxauth_config()
@@ -522,10 +522,10 @@ class Upgrade42:
         logger.info("Updating oxTrust config in persistence.")
         self.modify_oxtrust_config()
 
-        self.modify_indexes()
-
         logger.info("Updating scopes in persistence.")
         self.modify_scopes()
+
+        self.modify_indexes()
 
         # mark as succeed
         return True
