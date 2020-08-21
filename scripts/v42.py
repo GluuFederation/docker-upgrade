@@ -503,12 +503,41 @@ class Upgrade42:
                 **{"bucket": "gluu"}
             )
 
+    def create_session_bucket(self):
+        if self.backend_type != "couchbase":
+            return
+
+        req = self.backend.client.get_buckets()
+        if req.ok:
+            remote_buckets = tuple([bckt["name"] for bckt in req.json()])
+        else:
+            remote_buckets = tuple([])
+
+        if "gluu_session" in remote_buckets:
+            return
+
+        logger.info("Creating new gluu_session bucket.")
+
+        sys_info = self.backend.client.get_system_info()
+        ram_info = sys_info["storageTotals"]["ram"]
+
+        total_mem = (ram_info['quotaTotalPerNode'] - ram_info['quotaUsedPerNode']) / (1024 * 1024)
+        min_mem = 100
+        memsize = max(int(min_mem), int(total_mem))
+
+        req = self.backend.client.add_bucket("gluu_session", memsize, "couchbase")
+        if not req.ok:
+            logger.warning(f"Failed to create bucket gluu_session; reason={req.text}")
+
     def run_upgrade(self):
         logger.info("Updating attributes in persistence.")
         self.modify_attributes()
 
         logger.info("Updating misc entries in persistence.")
         self.add_new_entries()
+
+        logger.info("Updating scopes in persistence.")
+        self.modify_scopes()
 
         logger.info("Updating base config in persistence.")
         self.modify_base_config()
@@ -522,9 +551,9 @@ class Upgrade42:
         logger.info("Updating oxTrust config in persistence.")
         self.modify_oxtrust_config()
 
-        logger.info("Updating scopes in persistence.")
-        self.modify_scopes()
+        self.create_session_bucket()
 
+        # modify indexes
         self.modify_indexes()
 
         # mark as succeed
