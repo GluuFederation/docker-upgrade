@@ -390,7 +390,7 @@ class Upgrade42:
                         attr_ = ','.join(['`{}`'.format(a) for a in index])
                         index_name = "def_{0}_{1}".format(bucket, '_'.join(index))
 
-                    f.write('CREATE INDEX %s ON `%s`(%s) USING GSI WITH {"defer_build":true};\n' % (index_name, bucket, attr_))
+                    f.write('CREATE INDEX %s ON `%s`(%s) USING GSI WITH {"defer_build":false};\n' % (index_name, bucket, attr_))
                     index_names.append(index_name)
 
                 if index_names:
