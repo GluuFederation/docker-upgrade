@@ -60,6 +60,16 @@ objectClass: oxAuthCustomScope
 objectClass: top
 oxScopeType: openid
 
+dn: inum=C4F6,ou=scopes,o=gluu
+objectClass: top
+objectClass: oxAuthCustomScope
+oxId: offline_access
+inum: C4F6
+description: This scope value requests that an OAuth 2.0 Refresh Token be issued.
+defaultScope: true
+oxAttributes: {"spontaneousClientId":"","spontaneousClientScopes":[],"showInConfigurationEndpoint":true}
+oxScopeType: openid
+
 # ============================
 # taken from v4.2 scripts.ldif
 # ============================
