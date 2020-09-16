@@ -68,7 +68,7 @@ The following parameters are supported by the container:
         -e GLUU_LDAP_URL=ldap:1636 \
         -v /path/to/vault_role_id.txt:/etc/certs/vault_role_id \
         -v /path/to/vault_secret_id.txt:/etc/certs/vault_secret_id \
-        gluufederation/upgrade:4.2.0_01 \
+        gluufederation/upgrade:4.2.1_01 \
             --source 4.1 \
             --target 4.2
    ```
@@ -86,7 +86,7 @@ The following parameters are supported by the container:
           restartPolicy: Never
           containers:
             - name: gluu-upgrade-job
-              image: gluufederation/upgrade:4.2.0_01
+              image: gluufederation/upgrade:4.2.1_01
               envFrom:
               - configMapRef:
                   name: upgrade-cm
