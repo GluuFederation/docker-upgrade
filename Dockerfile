@@ -14,7 +14,7 @@ RUN apk update \
 
 # JAR files required to generate OpenID Connect keys
 ENV GLUU_VERSION=4.2.1.Final
-ENV GLUU_BUILD_DATE="2020-09-15 17:45"
+ENV GLUU_BUILD_DATE="2020-09-22 19:08"
 
 RUN mkdir -p /app/javalibs \
     && wget -q https://ox.gluu.org/maven/org/gluu/oxauth-client/${GLUU_VERSION}/oxauth-client-${GLUU_VERSION}-jar-with-dependencies.jar -O /app/javalibs/oxauth-client.jar
@@ -87,8 +87,10 @@ ENV GLUU_PERSISTENCE_TYPE=ldap \
     GLUU_PERSISTENCE_LDAP_MAPPING=default \
     GLUU_COUCHBASE_URL=localhost \
     GLUU_COUCHBASE_USER=admin \
+    GLUU_COUCHBASE_SUPERUSER="" \
     GLUU_COUCHBASE_CERT_FILE=/etc/certs/couchbase.crt \
     GLUU_COUCHBASE_PASSWORD_FILE=/etc/gluu/conf/couchbase_password \
+    GLUU_COUCHBASE_SUPERUSER_PASSWORD_FILE=/etc/gluu/conf/couchbase_superuser_password \
     GLUU_LDAP_URL=localhost:1636
 
 # ===========
@@ -106,7 +108,7 @@ LABEL name="Upgrade" \
     maintainer="Gluu Inc. <support@gluu.org>" \
     vendor="Gluu Federation" \
     version="4.2.1" \
-    release="01" \
+    release="02" \
     summary="Upgrade" \
     description="Upgrade static configuration and persistence data"
 

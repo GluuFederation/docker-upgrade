@@ -529,6 +529,18 @@ class Upgrade42:
         if not req.ok:
             logger.warning(f"Failed to create bucket gluu_session; reason={req.text}")
 
+    def create_shib_user(self):
+        if self.backend_type != "couchbase":
+            return
+
+        logger.info("Creating Couchbase user for Shibboleth.")
+        self.backend.client.create_user(
+            'couchbaseShibUser',
+            self.manager.secret.get("couchbase_shib_user_password"),
+            'Shibboleth IDP',
+            'query_select[*]',
+        )
+
     def run_upgrade(self):
         logger.info("Updating attributes in persistence.")
         self.modify_attributes()
@@ -555,6 +567,8 @@ class Upgrade42:
 
         # modify indexes
         self.modify_indexes()
+
+        self.create_shib_user()
 
         # mark as succeed
         return True

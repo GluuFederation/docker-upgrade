@@ -110,3 +110,4 @@ site.ldif
 metric.ldif
 couchbase.crt
 couchbase_password
+couchbase_superuser_password

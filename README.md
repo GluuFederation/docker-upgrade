@@ -46,8 +46,10 @@ The following environment variables are supported by the container:
 - `GLUU_LDAP_URL`: Address and port of LDAP server (default to `localhost:1636`); required if `GLUU_PERSISTENCE_TYPE` is set to `ldap` or `hybrid`.
 - `GLUU_COUCHBASE_URL`: Address of Couchbase server (default to `localhost`); required if `GLUU_PERSISTENCE_TYPE` is set to `couchbase` or `hybrid`.
 - `GLUU_COUCHBASE_USER`: Username of Couchbase server (default to `admin`); required if `GLUU_PERSISTENCE_TYPE` is set to `couchbase` or `hybrid`.
+- `GLUU_COUCHBASE_SUPERUSER`: Superuser of Couchbase server (default to empty-string); required if `GLUU_PERSISTENCE_TYPE` is set to `couchbase` or `hybrid`. Fallback to `GLUU_COUCHBASE_USER`.
 - `GLUU_COUCHBASE_CERT_FILE`: Couchbase root certificate location (default to `/etc/certs/couchbase.crt`); required if `GLUU_PERSISTENCE_TYPE` is set to `couchbase` or `hybrid`.
 - `GLUU_COUCHBASE_PASSWORD_FILE`: Path to file contains Couchbase password (default to `/etc/gluu/conf/couchbase_password`); required if `GLUU_PERSISTENCE_TYPE` is set to `couchbase` or `hybrid`.
+- `GLUU_COUCHBASE_SUPERUSER_PASSWORD_FILE`: Path to file contains Couchbase superuser password (default to `/etc/gluu/conf/couchbase_superuser_password`); required if `GLUU_PERSISTENCE_TYPE` is set to `couchbase` or `hybrid`.
 
 ## Entrypoint Parameters
 
@@ -68,7 +70,7 @@ The following parameters are supported by the container:
         -e GLUU_LDAP_URL=ldap:1636 \
         -v /path/to/vault_role_id.txt:/etc/certs/vault_role_id \
         -v /path/to/vault_secret_id.txt:/etc/certs/vault_secret_id \
-        gluufederation/upgrade:4.2.1_01 \
+        gluufederation/upgrade:4.2.1_02 \
             --source 4.1 \
             --target 4.2
    ```
@@ -86,7 +88,7 @@ The following parameters are supported by the container:
           restartPolicy: Never
           containers:
             - name: gluu-upgrade-job
-              image: gluufederation/upgrade:4.2.1_01
+              image: gluufederation/upgrade:4.2.1_02
               envFrom:
               - configMapRef:
                   name: upgrade-cm
