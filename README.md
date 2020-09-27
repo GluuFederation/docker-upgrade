@@ -7,7 +7,7 @@ This will be run as a job in Kubernetes or separate container in Docker. It will
 ## Versions
 
 See [Releases](https://github.com/GluuFederation/docker-upgrade/releases) for stable versions.
-For bleeding-edge/unstable version, use `gluufederation/upgrade:4.2.1_dev`.
+For bleeding-edge/unstable version, use `gluufederation/upgrade:4.2.2_dev`.
 
 ## Environment Variables
 
