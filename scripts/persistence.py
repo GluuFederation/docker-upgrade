@@ -1,3 +1,4 @@
+import contextlib
 import datetime
 import json
 import os
@@ -16,6 +17,8 @@ from pygluu.containerlib.utils import decode_text
 from pygluu.containerlib.persistence.couchbase import CouchbaseClient as _CBClient
 from pygluu.containerlib.persistence.couchbase import get_couchbase_password
 from pygluu.containerlib.persistence.couchbase import get_couchbase_user
+from pygluu.containerlib.persistence.couchbase import get_couchbase_superuser_password
+from pygluu.containerlib.persistence.couchbase import get_couchbase_superuser
 
 Entry = namedtuple("Entry", ["id", "attrs"])
 
@@ -221,8 +224,13 @@ class LDAPBackend:
 class CouchbaseBackend:
     def __init__(self, manager):
         hosts = os.environ.get("GLUU_COUCHBASE_URL", "localhost")
-        user = get_couchbase_user(manager)
-        password = get_couchbase_password(manager)
+        user = get_couchbase_superuser(manager) or get_couchbase_user(manager)
+
+        password = ""
+        with contextlib.suppress(FileNotFoundError):
+            password = get_couchbase_superuser_password(manager)
+        password = password or get_couchbase_password(manager)
+
         self.client = _CBClient(hosts, user, password)
 
     def get_entry(self, key, filter_="", attrs=None, **kwargs):

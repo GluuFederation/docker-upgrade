@@ -1,6 +1,7 @@
 import logging
 import json
 import os
+from collections import OrderedDict
 
 from ldif3 import LDIFParser
 
@@ -174,13 +175,19 @@ class Upgrade42:
                 "notificationKey": "",
                 "publicVapidKey": ""
             },
+            "deviceAuthorizationEndpoint": f"https://%(hostname)s/oxauth/restv1/device-authorization",
+            "deviceAuthzRequestExpiresIn": 1800,
+            "deviceAuthzTokenPollInterval": 5,
+            "deviceAuthzResponseTypeToProcessAuthz": "code",
         }
 
         for k, v in new_attrs.items():
             if k not in dynamic_conf:
                 dynamic_conf[k] = v
 
-        dynamic_conf["uiLocalesSupported"] = ["en", "bg", "de", "es", "fr", "it", "ru", "tr"]
+        dynamic_conf["uiLocalesSupported"] = dynamic_conf["uiLocalesSupported"] + ["bg", "de", "fr", "it", "ru", "tr"]
+        dynamic_conf["grantTypesSupported"] = dynamic_conf["grantTypesSupported"] + ["urn:ietf:params:oauth:grant-type:device_code"]
+        dynamic_conf["dynamicGrantTypeDefault"] = dynamic_conf["dynamicGrantTypeDefault"] + ["urn:ietf:params:oauth:grant-type:device_code"]
 
         # STATIC CONF
 
@@ -323,6 +330,217 @@ class Upgrade42:
             **{"bucket": "gluu"},
         )
 
+    def _modify_couchbase_indexes(self):
+        def get_bucket_mappings():
+            bucket_mappings = OrderedDict({
+                "default": {
+                    "bucket": "gluu",
+                },
+                "user": {
+                    "bucket": "gluu_user",
+                },
+                "site": {
+                    "bucket": "gluu_site",
+                },
+                "token": {
+                    "bucket": "gluu_token",
+                },
+                "cache": {
+                    "bucket": "gluu_cache",
+                },
+                "session": {
+                    "bucket": "gluu_session",
+                },
+            })
+
+            persistence_type = os.environ.get("GLUU_PERSISTENCE_TYPE", "ldap")
+            ldap_mapping = os.environ.get("GLUU_PERSISTENCE_LDAP_MAPPING", "default")
+
+            if persistence_type != "couchbase":
+                bucket_mappings = OrderedDict({
+                    name: mapping for name, mapping in bucket_mappings.items()
+                    if name != ldap_mapping
+                })
+            return bucket_mappings
+
+        buckets = [mapping["bucket"] for _, mapping in get_bucket_mappings().items()]
+
+        with open("/app/templates/v4.2/couchbase_index.json") as f:
+            txt = f.read().replace("!bucket_prefix!", "gluu")
+            indexes = json.loads(txt)
+
+        for bucket in buckets:
+            if bucket not in indexes:
+                continue
+
+            query_file = "/app/tmp/index_{}.n1ql".format(bucket)
+
+            with open(query_file, "w") as f:
+                index_list = indexes.get(bucket, {})
+                index_names = []
+
+                for index in index_list.get("attributes", []):
+                    if '(' in ''.join(index):
+                        attr_ = index[0]
+                        index_name_ = index[0].replace('(', '_').replace(')', '_').replace('`', '').lower()
+                        if index_name_.endswith('_'):
+                            index_name_ = index_name_[:-1]
+                        index_name = 'def_{0}_{1}'.format(bucket, index_name_)
+                    else:
+                        attr_ = ','.join(['`{}`'.format(a) for a in index])
+                        index_name = "def_{0}_{1}".format(bucket, '_'.join(index))
+
+                    f.write('CREATE INDEX %s ON `%s`(%s) USING GSI WITH {"defer_build":false};\n' % (index_name, bucket, attr_))
+                    index_names.append(index_name)
+
+                if index_names:
+                    f.write('BUILD INDEX ON `%s` (%s) USING GSI;\n' % (bucket, ', '.join(index_names)))
+
+                sic = 1
+                for attribs, wherec in index_list.get("static", []):
+                    attrquoted = []
+
+                    for a in attribs:
+                        if '(' not in a:
+                            attrquoted.append('`{}`'.format(a))
+                        else:
+                            attrquoted.append(a)
+                    attrquoteds = ', '.join(attrquoted)
+
+                    f.write('CREATE INDEX `{0}_static_{1:02d}` ON `{0}`({2}) WHERE ({3})\n'.format(bucket, sic, attrquoteds, wherec))
+                    sic += 1
+
+            # exec query
+            with open(query_file) as f:
+                for line in f:
+                    query = line.strip()
+                    if not query:
+                        continue
+
+                    req = self.backend.client.exec_query(query)
+                    if not req.ok:
+                        # the following code should be ignored
+                        # - 4300: index already exists
+                        # - 5000: index already built
+                        error = req.json()["errors"][0]
+                        if error["code"] in (4300, 5000):
+                            continue
+                        logger.warning(f"Failed to execute query, reason={error['msg']}")
+
+    def _modify_opendj_indexes(self):
+        def require_site():
+            GLUU_PERSISTENCE_TYPE = os.environ.get("GLUU_PERSISTENCE_TYPE", "ldap")
+            GLUU_PERSISTENCE_LDAP_MAPPING = os.environ.get("GLUU_PERSISTENCE_LDAP_MAPPING", "default")
+
+            if GLUU_PERSISTENCE_TYPE == "ldap":
+                return True
+            if GLUU_PERSISTENCE_TYPE == "hybrid" and GLUU_PERSISTENCE_LDAP_MAPPING == "site":
+                return True
+            return False
+
+        with open("/app/templates/v4.2/opendj_index.json") as f:
+            data = json.load(f)
+
+        backends = ["userRoot"]
+        if require_site():
+            backends.append("site")
+
+        for attr_map in data:
+            for backend in attr_map["backend"]:
+                if backend not in backends:
+                    continue
+
+                dn = f"ds-cfg-attribute={attr_map['attribute']},cn=Index,ds-cfg-backend-id={backend},cn=Backends,cn=config"
+                attrs = {
+                    'objectClass': ['top', 'ds-cfg-backend-index'],
+                    'ds-cfg-attribute': [attr_map['attribute']],
+                    'ds-cfg-index-type': attr_map['index'],
+                    'ds-cfg-index-entry-limit': ['4000']
+                }
+
+                # save to backend
+                self.backend.add_entry(dn, attrs, **{"bucket": "gluu"})
+
+    def modify_indexes(self):
+        if self.backend_type == "couchbase":
+            logger.info("Updating Couchbase indexes.")
+            self._modify_couchbase_indexes()
+        else:
+            logger.info("Updating OpenDJ indexes.")
+            self._modify_opendj_indexes()
+
+    def modify_scopes(self):
+        scopes = [
+            "F0C4",
+            "43F1",
+            "764C",
+            "C17A",
+            "D491",
+            "341A",
+            "10B2",
+            "6D99",
+            "6D90",
+            "7D90",
+            "8A01",
+            "C4F5",
+        ]
+        keys = [f"inum={inum},ou=scopes,o=gluu" for inum in scopes]
+        if self.backend_type == "couchbase":
+            keys = [get_key_from(key) for key in keys]
+
+        ox_attrs = {
+            "spontaneousClientId": "",
+            "spontaneousClientScopes": [],
+            "showInConfigurationEndpoint": True,
+        }
+        if self.backend_type == "ldap":
+            ox_attrs = json.dumps(ox_attrs)
+
+        for id_ in keys:
+            self.backend.modify_entry(
+                id_,
+                {"oxAttributes": ox_attrs},
+                **{"bucket": "gluu"}
+            )
+
+    def create_session_bucket(self):
+        if self.backend_type != "couchbase":
+            return
+
+        req = self.backend.client.get_buckets()
+        if req.ok:
+            remote_buckets = tuple([bckt["name"] for bckt in req.json()])
+        else:
+            remote_buckets = tuple([])
+
+        if "gluu_session" in remote_buckets:
+            return
+
+        logger.info("Creating new gluu_session bucket.")
+
+        sys_info = self.backend.client.get_system_info()
+        ram_info = sys_info["storageTotals"]["ram"]
+
+        total_mem = (ram_info['quotaTotalPerNode'] - ram_info['quotaUsedPerNode']) / (1024 * 1024)
+        min_mem = 100
+        memsize = max(int(min_mem), int(total_mem))
+
+        req = self.backend.client.add_bucket("gluu_session", memsize, "couchbase")
+        if not req.ok:
+            logger.warning(f"Failed to create bucket gluu_session; reason={req.text}")
+
+    def create_shib_user(self):
+        if self.backend_type != "couchbase":
+            return
+
+        logger.info("Creating Couchbase user for Shibboleth.")
+        self.backend.client.create_user(
+            'couchbaseShibUser',
+            self.manager.secret.get("couchbase_shib_user_password"),
+            'Shibboleth IDP',
+            'query_select[*]',
+        )
+
     def run_upgrade(self):
         logger.info("Updating attributes in persistence.")
         self.modify_attributes()
@@ -330,8 +548,11 @@ class Upgrade42:
         logger.info("Updating misc entries in persistence.")
         self.add_new_entries()
 
-        # logger.info("Updating base config in persistence.")
-        # self.modify_base_config()
+        logger.info("Updating scopes in persistence.")
+        self.modify_scopes()
+
+        logger.info("Updating base config in persistence.")
+        self.modify_base_config()
 
         logger.info("Updating oxAuth config in persistence.")
         self.modify_oxauth_config()
@@ -341,6 +562,13 @@ class Upgrade42:
 
         logger.info("Updating oxTrust config in persistence.")
         self.modify_oxtrust_config()
+
+        self.create_session_bucket()
+
+        # modify indexes
+        self.modify_indexes()
+
+        self.create_shib_user()
 
         # mark as succeed
         return True

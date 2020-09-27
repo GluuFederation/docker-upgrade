@@ -1,4 +1,4 @@
-FROM adoptopenjdk/openjdk11:alpine-jre
+FROM adoptopenjdk/openjdk11:jre-11.0.8_10-alpine
 
 # ===============
 # Alpine packages
@@ -13,8 +13,8 @@ RUN apk update \
 # =============
 
 # JAR files required to generate OpenID Connect keys
-ARG GLUU_VERSION=4.2.0-SNAPSHOT
-ARG GLUU_BUILD_DATE="2020-07-06 16:32"
+ENV GLUU_VERSION=4.2.1.Final
+ENV GLUU_BUILD_DATE="2020-09-24 08:25"
 
 RUN mkdir -p /app/javalibs \
     && wget -q https://ox.gluu.org/maven/org/gluu/oxauth-client/${GLUU_VERSION}/oxauth-client-${GLUU_VERSION}-jar-with-dependencies.jar -O /app/javalibs/oxauth-client.jar
@@ -24,9 +24,10 @@ RUN mkdir -p /app/javalibs \
 # ======
 
 RUN apk add --no-cache py3-cryptography
-COPY requirements.txt /tmp/requirements.txt
+COPY requirements.txt /app/requirements.txt
 RUN pip3 install -U pip \
-    && pip3 install --no-cache-dir -r /tmp/requirements.txt
+    && pip3 install --no-cache-dir -r /app/requirements.txt \
+    && rm -rf /src/pygluu-containerlib/.git
 
 # =======
 # Cleanup
@@ -86,8 +87,10 @@ ENV GLUU_PERSISTENCE_TYPE=ldap \
     GLUU_PERSISTENCE_LDAP_MAPPING=default \
     GLUU_COUCHBASE_URL=localhost \
     GLUU_COUCHBASE_USER=admin \
+    GLUU_COUCHBASE_SUPERUSER="" \
     GLUU_COUCHBASE_CERT_FILE=/etc/certs/couchbase.crt \
     GLUU_COUCHBASE_PASSWORD_FILE=/etc/gluu/conf/couchbase_password \
+    GLUU_COUCHBASE_SUPERUSER_PASSWORD_FILE=/etc/gluu/conf/couchbase_superuser_password \
     GLUU_LDAP_URL=localhost:1636
 
 # ===========
@@ -104,8 +107,8 @@ ENV GLUU_WAIT_MAX_TIME=300 \
 LABEL name="Upgrade" \
     maintainer="Gluu Inc. <support@gluu.org>" \
     vendor="Gluu Federation" \
-    version="4.2.0" \
-    release="01" \
+    version="4.2.1" \
+    release="02" \
     summary="Upgrade" \
     description="Upgrade static configuration and persistence data"
 
