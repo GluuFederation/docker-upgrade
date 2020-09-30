@@ -175,7 +175,7 @@ class Upgrade42:
                 "notificationKey": "",
                 "publicVapidKey": ""
             },
-            "deviceAuthorizationEndpoint": f"https://{hostname}/oxauth/restv1/device-authorization",
+            "deviceAuthzEndpoint": f"https://{hostname}/oxauth/restv1/device_authorization",
             "deviceAuthzRequestExpiresIn": 1800,
             "deviceAuthzTokenPollInterval": 5,
             "deviceAuthzResponseTypeToProcessAuthz": "code",
