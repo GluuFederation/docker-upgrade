@@ -139,9 +139,10 @@ class Upgrade42:
 
         # DYNAMIC CONF
 
-        dynamic_conf = entry.attrs["oxAuthConfDynamic"]
-        if self.backend_type == "ldap":
-            dynamic_conf = json.loads(dynamic_conf)
+        try:
+            dynamic_conf = json.loads(entry.attrs["oxAuthConfDynamic"])
+        except TypeError:
+            dynamic_conf = entry.attrs["oxAuthConfDynamic"]
 
         new_attrs = {
             "backchannelAuthenticationEndpoint": f"https://{hostname}/oxauth/restv1/bc-authorize",
@@ -228,9 +229,10 @@ class Upgrade42:
         if not entry:
             return
 
-        conf = entry.attrs["oxConfApplication"]
-        if self.backend_type == "ldap":
-            conf = json.loads(conf)
+        try:
+            conf = json.loads(entry.attrs["oxConfApplication"])
+        except TypeError:
+            conf = entry.attrs["oxConfApplication"]
 
         if "scriptDn" not in conf:
             conf["scriptDn"] = "ou=scripts,o=gluu"
@@ -260,9 +262,10 @@ class Upgrade42:
 
         # dynamic
 
-        conf = entry.attrs["oxTrustConfApplication"]
-        if self.backend_type == "ldap":
-            conf = json.loads(conf)
+        try:
+            conf = json.loads(entry.attrs["oxTrustConfApplication"])
+        except TypeError:
+            conf = entry.attrs["oxTrustConfApplication"]
 
         new_attrs = {
             "loggingLayout": "text",
@@ -282,9 +285,10 @@ class Upgrade42:
 
         # cache-refresh
 
-        cr_conf = entry.attrs["oxTrustConfCacheRefresh"]
-        if self.backend_type == "ldap":
-            cr_conf = json.loads(cr_conf)
+        try:
+            cr_conf = json.loads(entry.attrs["oxTrustConfCacheRefresh"])
+        except TypeError:
+            cr_conf = entry.attrs["oxTrustConfCacheRefresh"]
 
         if "defaultInumServer" not in conf:
             cr_conf["defaultInumServer"] = True
@@ -314,9 +318,10 @@ class Upgrade42:
         if not entry:
             return
 
-        conf = entry.attrs["oxCacheConfiguration"]
-        if self.backend_type == "ldap":
-            conf = json.loads(conf)
+        try:
+            conf = json.loads(entry.attrs["oxCacheConfiguration"])
+        except TypeError:
+            conf = entry.attrs["oxCacheConfiguration"]
 
         if "baseDn" not in conf["nativePersistenceConfiguration"]:
             conf["nativePersistenceConfiguration"]["baseDn"] = "o=gluu"
@@ -429,12 +434,12 @@ class Upgrade42:
 
     def _modify_opendj_indexes(self):
         def require_site():
-            GLUU_PERSISTENCE_TYPE = os.environ.get("GLUU_PERSISTENCE_TYPE", "ldap")
-            GLUU_PERSISTENCE_LDAP_MAPPING = os.environ.get("GLUU_PERSISTENCE_LDAP_MAPPING", "default")
+            persistence_type = os.environ.get("GLUU_PERSISTENCE_TYPE", "ldap")
+            ldap_mapping = os.environ.get("GLUU_PERSISTENCE_LDAP_MAPPING", "default")
 
-            if GLUU_PERSISTENCE_TYPE == "ldap":
+            if persistence_type == "ldap":
                 return True
-            if GLUU_PERSISTENCE_TYPE == "hybrid" and GLUU_PERSISTENCE_LDAP_MAPPING == "site":
+            if persistence_type == "hybrid" and ldap_mapping == "site":
                 return True
             return False
 
@@ -509,9 +514,9 @@ class Upgrade42:
 
         req = self.backend.client.get_buckets()
         if req.ok:
-            remote_buckets = tuple([bckt["name"] for bckt in req.json()])
+            remote_buckets = tuple(bckt["name"] for bckt in req.json())
         else:
-            remote_buckets = tuple([])
+            remote_buckets = ()
 
         if "gluu_session" in remote_buckets:
             return
