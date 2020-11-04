@@ -180,6 +180,7 @@ class Upgrade42:
             "deviceAuthzRequestExpiresIn": 1800,
             "deviceAuthzTokenPollInterval": 5,
             "deviceAuthzResponseTypeToProcessAuthz": "code",
+            "forceOfflineAccessScopeToEnableRefreshToken": False,
         }
 
         for k, v in new_attrs.items():
