@@ -241,9 +241,13 @@ class CouchbaseBackend:
         if not req.ok:
             return
 
-        attrs = req.json()["results"][0]
-        id_ = attrs.pop("id")
-        return Entry(id_, attrs)
+        try:
+            attrs = req.json()["results"][0]
+            id_ = attrs.pop("id")
+            entry = Entry(id_, attrs)
+        except IndexError:
+            entry = None
+        return entry
 
     def add_entry(self, key, attrs=None, **kwargs):
         bucket = kwargs.get("bucket")
