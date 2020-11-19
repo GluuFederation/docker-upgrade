@@ -5,7 +5,7 @@ FROM adoptopenjdk/openjdk11:jre-11.0.8_10-alpine
 # ===============
 
 RUN apk update \
-    && apk add --no-cache py3-pip tini \
+    && apk add --no-cache py3-pip tini curl \
     && apk add --no-cache --virtual build-deps git
 
 # =============
