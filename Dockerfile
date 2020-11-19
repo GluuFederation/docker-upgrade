@@ -5,7 +5,7 @@ FROM adoptopenjdk/openjdk11:jre-11.0.8_10-alpine
 # ===============
 
 RUN apk update \
-    && apk add --no-cache py3-pip tini \
+    && apk add --no-cache py3-pip tini curl \
     && apk add --no-cache --virtual build-deps git
 
 # =============
@@ -108,7 +108,7 @@ LABEL name="Upgrade" \
     maintainer="Gluu Inc. <support@gluu.org>" \
     vendor="Gluu Federation" \
     version="4.2.1" \
-    release="04" \
+    release="05" \
     summary="Upgrade" \
     description="Upgrade static configuration and persistence data"
 
