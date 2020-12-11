@@ -88,11 +88,12 @@ class Upgrade42:
         if self.backend_type != "ldap":
             key = get_key_from(key)
 
-        entry = self.backend.get_entry(key, **{"bucket": "gluu"})
+        bucket_prefix = os.environ.get("GLUU_COUCHBASE_BUCKET_PREFIX", "gluu")
+        entry = self.backend.get_entry(key, **{"bucket": bucket_prefix})
 
         if entry and "oxAuthClaimName" not in entry.attrs:
             entry.attrs["oxAuthClaimName"] = "user_permission"
-            self.backend.modify_entry(entry.id, entry.attrs, **{"bucket": "gluu"})
+            self.backend.modify_entry(entry.id, entry.attrs, **{"bucket": bucket_prefix})
 
     def add_new_entries(self):
         ctx = {}
@@ -113,6 +114,7 @@ class Upgrade42:
             "/app/static/v4.2/gluu_schema.json",
         )
 
+        bucket_prefix = os.environ.get("GLUU_COUCHBASE_BUCKET_PREFIX", "gluu")
         parser = LDIFParser(open(dst, "rb"))
         for dn, entry in parser.parse():
             if self.backend_type != "ldap":
@@ -124,14 +126,15 @@ class Upgrade42:
                 dn = get_key_from(dn)
 
             # save to backend
-            self.backend.add_entry(dn, entry, **{"bucket": "gluu"})
+            self.backend.add_entry(dn, entry, **{"bucket": bucket_prefix})
 
     def modify_oxauth_config(self):
         key = "ou=oxauth,ou=configuration,o=gluu"
         if self.backend_type != "ldap":
             key = get_key_from(key)
 
-        entry = self.backend.get_entry(key, **{"bucket": "gluu"})
+        bucket_prefix = os.environ.get("GLUU_COUCHBASE_BUCKET_PREFIX", "gluu")
+        entry = self.backend.get_entry(key, **{"bucket": bucket_prefix})
         if not entry:
             return
 
@@ -218,7 +221,7 @@ class Upgrade42:
                 "oxAuthConfErrors": errors_conf,
                 "oxRevision": ox_rev,
             },
-            **{"bucket": "gluu"},
+            **{"bucket": bucket_prefix},
         )
 
     def modify_oxidp_config(self):
@@ -226,7 +229,8 @@ class Upgrade42:
         if self.backend_type != "ldap":
             key = get_key_from(key)
 
-        entry = self.backend.get_entry(key, **{"bucket": "gluu"})
+        bucket_prefix = os.environ.get("GLUU_COUCHBASE_BUCKET_PREFIX", "gluu")
+        entry = self.backend.get_entry(key, **{"bucket": bucket_prefix})
         if not entry:
             return
 
@@ -244,10 +248,11 @@ class Upgrade42:
         # increment it to auto-reload related ox apps
         ox_rev = entry.attrs["oxRevision"] + 1
 
+        bucket_prefix = os.environ.get("GLUU_COUCHBASE_BUCKET_PREFIX", "gluu")
         self.backend.modify_entry(
             entry.id,
             {"oxConfApplication": conf, "oxRevision": ox_rev},
-            **{"bucket": "gluu"},
+            **{"bucket": bucket_prefix},
         )
 
     def modify_oxtrust_config(self):
@@ -255,7 +260,8 @@ class Upgrade42:
         if self.backend_type != "ldap":
             key = get_key_from(key)
 
-        entry = self.backend.get_entry(key, **{"bucket": "gluu"})
+        bucket_prefix = os.environ.get("GLUU_COUCHBASE_BUCKET_PREFIX", "gluu")
+        entry = self.backend.get_entry(key, **{"bucket": bucket_prefix})
         if not entry:
             return
 
@@ -307,7 +313,7 @@ class Upgrade42:
                 "oxTrustConfCacheRefresh": cr_conf,
                 "oxRevision": ox_rev,
             },
-            **{"bucket": "gluu"},
+            **{"bucket": bucket_prefix},
         )
 
     def modify_base_config(self):
@@ -315,7 +321,8 @@ class Upgrade42:
         if self.backend_type != "ldap":
             key = get_key_from(key)
 
-        entry = self.backend.get_entry(key, **{"bucket": "gluu"})
+        bucket_prefix = os.environ.get("GLUU_COUCHBASE_BUCKET_PREFIX", "gluu")
+        entry = self.backend.get_entry(key, **{"bucket": bucket_prefix})
         if not entry:
             return
 
@@ -333,29 +340,31 @@ class Upgrade42:
         self.backend.modify_entry(
             entry.id,
             {"oxCacheConfiguration": conf},
-            **{"bucket": "gluu"},
+            **{"bucket": bucket_prefix},
         )
 
     def _modify_couchbase_indexes(self):
+        bucket_prefix = os.environ.get("GLUU_COUCHBASE_BUCKET_PREFIX", "gluu")
+
         def get_bucket_mappings():
             bucket_mappings = OrderedDict({
                 "default": {
-                    "bucket": "gluu",
+                    "bucket": bucket_prefix,
                 },
                 "user": {
-                    "bucket": "gluu_user",
+                    "bucket": f"{bucket_prefix}_user",
                 },
                 "site": {
-                    "bucket": "gluu_site",
+                    "bucket": f"{bucket_prefix}_site",
                 },
                 "token": {
-                    "bucket": "gluu_token",
+                    "bucket": f"{bucket_prefix}_token",
                 },
                 "cache": {
-                    "bucket": "gluu_cache",
+                    "bucket": f"{bucket_prefix}_cache",
                 },
                 "session": {
-                    "bucket": "gluu_session",
+                    "bucket": f"{bucket_prefix}_session",
                 },
             })
 
@@ -372,7 +381,7 @@ class Upgrade42:
         buckets = [mapping["bucket"] for _, mapping in get_bucket_mappings().items()]
 
         with open("/app/templates/v4.2/couchbase_index.json") as f:
-            txt = f.read().replace("!bucket_prefix!", "gluu")
+            txt = f.read().replace("!bucket_prefix!", bucket_prefix)
             indexes = json.loads(txt)
 
         for bucket in buckets:
@@ -451,6 +460,7 @@ class Upgrade42:
         if require_site():
             backends.append("site")
 
+        bucket_prefix = os.environ.get("GLUU_COUCHBASE_BUCKET_PREFIX", "gluu")
         for attr_map in data:
             for backend in attr_map["backend"]:
                 if backend not in backends:
@@ -465,7 +475,7 @@ class Upgrade42:
                 }
 
                 # save to backend
-                self.backend.add_entry(dn, attrs, **{"bucket": "gluu"})
+                self.backend.add_entry(dn, attrs, **{"bucket": bucket_prefix})
 
     def modify_indexes(self):
         if self.backend_type == "couchbase":
@@ -502,11 +512,12 @@ class Upgrade42:
         if self.backend_type == "ldap":
             ox_attrs = json.dumps(ox_attrs)
 
+        bucket_prefix = os.environ.get("GLUU_COUCHBASE_BUCKET_PREFIX", "gluu")
         for id_ in keys:
             self.backend.modify_entry(
                 id_,
                 {"oxAttributes": ox_attrs},
-                **{"bucket": "gluu"}
+                **{"bucket": bucket_prefix}
             )
 
     def create_session_bucket(self):
@@ -519,10 +530,11 @@ class Upgrade42:
         else:
             remote_buckets = ()
 
-        if "gluu_session" in remote_buckets:
+        bucket_prefix = os.environ.get("GLUU_COUCHBASE_BUCKET_PREFIX", "gluu")
+        if f"{bucket_prefix}_session" in remote_buckets:
             return
 
-        logger.info("Creating new gluu_session bucket.")
+        logger.info(f"Creating new {bucket_prefix}_session bucket.")
 
         sys_info = self.backend.client.get_system_info()
         ram_info = sys_info["storageTotals"]["ram"]
@@ -531,9 +543,9 @@ class Upgrade42:
         min_mem = 100
         memsize = max(int(min_mem), int(total_mem))
 
-        req = self.backend.client.add_bucket("gluu_session", memsize, "couchbase")
+        req = self.backend.client.add_bucket(f"{bucket_prefix}_session", memsize, "couchbase")
         if not req.ok:
-            logger.warning(f"Failed to create bucket gluu_session; reason={req.text}")
+            logger.warning(f"Failed to create bucket {bucket_prefix}_session; reason={req.text}")
 
     def create_shib_user(self):
         if self.backend_type != "couchbase":

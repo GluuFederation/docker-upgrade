@@ -20,81 +20,6 @@ from pygluu.containerlib.persistence.couchbase import get_couchbase_superuser_pa
 from pygluu.containerlib.persistence.couchbase import get_couchbase_superuser
 
 
-class LegacyLDAPBackend(object):
-    def __init__(self, manager):
-        url = os.environ.get("GLUU_LDAP_URL", "localhost:1636")
-        user = manager.config.get("ldap_binddn")
-        passwd = decode_text(
-            manager.secret.get("encoded_ox_ldap_pw"),
-            manager.secret.get("encoded_salt"),
-        )
-
-        server = Server(url, port=1636, use_ssl=True)
-        self.conn = Connection(server, user, passwd)
-        self.manager = manager
-
-    def get_entry(self, key, filter_="", attrs=None):
-        attrs = None or ["*"]
-        filter_ = filter_ or "(objectClass=*)"
-
-        with self.conn as conn:
-            conn.search(
-                search_base=key,
-                search_filter=filter_,
-                search_scope=BASE,
-                attributes=attrs,
-            )
-
-            if not conn.entries:
-                return []
-            return conn.entries
-
-    def modify_entry(self, key, attrs=None):
-        attrs = attrs or {}
-
-        with self.conn as conn:
-            conn.modify(
-                key,
-                {k: [(MODIFY_REPLACE, v)] for k, v in attrs.items()}
-            )
-            return bool(conn.result["description"] == "success"), conn.result["message"]
-
-    def add_entry(self, key, attrs=None):
-        attrs = attrs or {}
-
-        with self.conn as conn:
-            conn.add(key, attributes=attrs)
-            return bool(conn.result["description"] == "success"), conn.result["message"]
-
-    def delete_entry(self, key):
-        with self.conn as conn:
-            conn.delete(key)
-            return bool(conn.result["description"] == "success"), conn.result["message"]
-
-    def upsert_entry(self, key, attrs=None):
-        attrs = attrs or {}
-
-        saved, err = self.modify_entry(key, attrs)
-        if not saved:
-            saved, err = self.add_entry(key, attrs)
-        return saved, err
-
-    def all(self, key="", filter_="", attrs=None):
-        key = key or "o=gluu"
-        attrs = None or ["*"]
-        filter_ = filter_ or "(objectClass=*)"
-
-        with self.conn as conn:
-            conn.search(
-                search_base=key,
-                search_filter=filter_,
-                search_scope=SUBTREE,
-                attributes=attrs,
-            )
-            for e in conn.entries:
-                yield e
-
-
 #: shortcut to ldap3.utils.dn:to_dn
 explode_dn = to_dn
 
@@ -185,7 +110,7 @@ class LDAPBackend(object):
             saved, err = self.add_entry(key, attrs)
         return saved, err
 
-    def all(self, key="", filter_="", attrs=None, **kwargs):
+    def all(self, key="", filter_="", attrs=None, **kwargs):  # noqa: A003
         key = key or "o=gluu"
 
         attrs = None or ["*"]
@@ -261,7 +186,7 @@ class CouchbaseBackend(object):
     # def upsert_entry(self, key, attrs=None, **kwargs):
     #     bucket = kwargs.get("bucket")
 
-    def all(self, key="", filter_="", attrs=None, **kwargs):
+    def all(self, key="", filter_="", attrs=None, **kwargs):  # noqa: A003
         bucket = kwargs.get("bucket")
 
         req = self.client.exec_query(

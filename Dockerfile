@@ -91,6 +91,7 @@ ENV GLUU_PERSISTENCE_TYPE=ldap \
     GLUU_COUCHBASE_CERT_FILE=/etc/certs/couchbase.crt \
     GLUU_COUCHBASE_PASSWORD_FILE=/etc/gluu/conf/couchbase_password \
     GLUU_COUCHBASE_SUPERUSER_PASSWORD_FILE=/etc/gluu/conf/couchbase_superuser_password \
+    GLUU_COUCHBASE_BUCKET_PREFIX=gluu \
     GLUU_LDAP_URL=localhost:1636
 
 # ===========
