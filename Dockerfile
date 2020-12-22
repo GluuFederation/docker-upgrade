@@ -109,7 +109,7 @@ LABEL name="Upgrade" \
     maintainer="Gluu Inc. <support@gluu.org>" \
     vendor="Gluu Federation" \
     version="4.2.2" \
-    release="01" \
+    release="02" \
     summary="Upgrade" \
     description="Upgrade static configuration and persistence data"
 

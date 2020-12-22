@@ -1,13 +1,13 @@
 ## Overview
 
-Upgrade Container for Gluu Server  Community Conatiner Edition and Enterprise Edition.
+Upgrade Container for Gluu Server Cloud Native edition.
 
 This will be run as a job in Kubernetes or separate container in Docker. It will automatically upgrade your Gluu Server static configuration and LDAP data to the labeled version.
 
 ## Versions
 
 See [Releases](https://github.com/GluuFederation/docker-upgrade/releases) for stable versions.
-For bleeding-edge/unstable version, use `gluufederation/upgrade:4.2.1_dev`.
+For bleeding-edge/unstable version, use `gluufederation/upgrade:4.2.2_dev`.
 
 ## Environment Variables
 
@@ -71,7 +71,7 @@ The following parameters are supported by the container:
         -e GLUU_LDAP_URL=ldap:1636 \
         -v /path/to/vault_role_id.txt:/etc/certs/vault_role_id \
         -v /path/to/vault_secret_id.txt:/etc/certs/vault_secret_id \
-        gluufederation/upgrade:4.2.1_04 \
+        gluufederation/upgrade:4.2.2_dev \
             --source 4.1 \
             --target 4.2
    ```
@@ -89,7 +89,7 @@ The following parameters are supported by the container:
           restartPolicy: Never
           containers:
             - name: gluu-upgrade-job
-              image: gluufederation/upgrade:4.2.1_04
+              image: gluufederation/upgrade:4.2.2_dev
               envFrom:
               - configMapRef:
                   name: upgrade-cm
