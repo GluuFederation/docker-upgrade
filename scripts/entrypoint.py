@@ -50,28 +50,29 @@ def main():
         logger.error("Upgrading from {} to {} is not allowed".format(args.source, args.target))
         sys.exit(1)
 
-    # get all upgrader classes required by the process
-    steps = itertools.islice(
-        SUPPORTED_VERSIONS,
-        SUPPORTED_VERSIONS.index(args.source) + 1,
-        SUPPORTED_VERSIONS.index(args.target) + 1,
-    )
+    if args.source == args.target:
+        steps = [args.target]
+    else:
+        # get all upgrader classes required by the process
+        steps = itertools.islice(
+            SUPPORTED_VERSIONS,
+            SUPPORTED_VERSIONS.index(args.source) + 1,
+            SUPPORTED_VERSIONS.index(args.target) + 1,
+        )
+
     upgrader_classes = [UPGRADER_CLASSES.get(step) for step in steps]
 
     manager = get_manager()
     wait_for(manager, deps=["config", "secret"])
 
-    logger.info("Upgrading data")
-
-    prev_version = args.source
+    logger.info(f"Upgrading data from {args.source}")
 
     for step, upgrader_class in enumerate(upgrader_classes):
         upgrader = upgrader_class(manager)
-        logger.info("Step {}: upgrading {} to {}".format(step + 1, prev_version, upgrader.version))
+        logger.info(f"Step {step+1}: upgrading to {upgrader.version}")
         if not upgrader.run_upgrade():
-            logger.warning("Unable to upgrade version from {} to {}".format(prev_version, upgrader.version))
+            logger.warning(f"Unable to upgrade version to {upgrader.version}")
             return
-        prev_version = upgrader.version
 
 
 if __name__ == "__main__":
