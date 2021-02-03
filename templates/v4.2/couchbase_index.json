@@ -36,6 +36,7 @@
       ["oxAuthUmaScope"],
       ["mail"],
       ["oxId"],
+      ["jansId"],
       ["oxTicket"],
       ["del"],
       ["ssnId"],
@@ -98,6 +99,7 @@
       ["oxAuthUserDN"]
     ],
     "static" : [
+        [["sid"], "objectClass = \"oxAuthSessionId\""],
         [["exp"], "objectClass = \"oxAuthSessionId\""]
     ]
   },

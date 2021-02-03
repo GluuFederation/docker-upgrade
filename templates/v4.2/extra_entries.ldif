@@ -47,6 +47,12 @@ objectClass: top
 objectClass: organizationalunit
 ou: ciba
 
+# Stat - LEVEL 2
+dn: ou=stat,o=gluu
+objectClass: top
+objectClass: organizationalUnit
+ou: stat
+
 # ===========================
 # taken from v4.2 scopes.ldif
 # ===========================

@@ -6,15 +6,15 @@ FROM adoptopenjdk/openjdk11:jre-11.0.8_10-alpine
 
 RUN apk update \
     && apk add --no-cache py3-pip tini curl \
-    && apk add --no-cache --virtual build-deps git
+    && apk add --no-cache --virtual build-deps git gcc musl-dev python3-dev libffi-dev openssl-dev
 
 # =============
 # oxAuth client
 # =============
 
 # JAR files required to generate OpenID Connect keys
-ENV GLUU_VERSION=4.2.2.Final
-ENV GLUU_BUILD_DATE="2020-12-22 12:20"
+ENV GLUU_VERSION=4.2.3.Final
+ENV GLUU_BUILD_DATE="2021-02-02 12:39"
 
 RUN mkdir -p /app/javalibs \
     && wget -q https://ox.gluu.org/maven/org/gluu/oxauth-client/${GLUU_VERSION}/oxauth-client-${GLUU_VERSION}-jar-with-dependencies.jar -O /app/javalibs/oxauth-client.jar
@@ -23,7 +23,6 @@ RUN mkdir -p /app/javalibs \
 # Python
 # ======
 
-RUN apk add --no-cache py3-cryptography
 COPY requirements.txt /app/requirements.txt
 RUN pip3 install -U pip \
     && pip3 install --no-cache-dir -r /app/requirements.txt \
@@ -108,8 +107,8 @@ ENV GLUU_WAIT_MAX_TIME=300 \
 LABEL name="Upgrade" \
     maintainer="Gluu Inc. <support@gluu.org>" \
     vendor="Gluu Federation" \
-    version="4.2.2" \
-    release="02" \
+    version="4.2.3" \
+    release="01" \
     summary="Upgrade" \
     description="Upgrade static configuration and persistence data"
 

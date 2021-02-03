@@ -1,4 +1,4 @@
-GLUU_VERSION=4.2.2
+GLUU_VERSION=4.2.3
 IMAGE_NAME=gluufederation/upgrade
 UNSTABLE_VERSION=dev
 

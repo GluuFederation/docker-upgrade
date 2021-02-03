@@ -83,17 +83,34 @@ class Upgrade42:
             self.backend = CouchbaseBackend(self.manager)
 
     def modify_attributes(self):
-        key = "inum=6049,ou=attributes,o=gluu"
+        def modify_gluu_permission():
+            key = "inum=6049,ou=attributes,o=gluu"
 
-        if self.backend_type != "ldap":
-            key = get_key_from(key)
+            if self.backend_type != "ldap":
+                key = get_key_from(key)
 
-        bucket_prefix = os.environ.get("GLUU_COUCHBASE_BUCKET_PREFIX", "gluu")
-        entry = self.backend.get_entry(key, **{"bucket": bucket_prefix})
+            bucket_prefix = os.environ.get("GLUU_COUCHBASE_BUCKET_PREFIX", "gluu")
+            entry = self.backend.get_entry(key, **{"bucket": bucket_prefix})
 
-        if entry and "oxAuthClaimName" not in entry.attrs:
-            entry.attrs["oxAuthClaimName"] = "user_permission"
-            self.backend.modify_entry(entry.id, entry.attrs, **{"bucket": bucket_prefix})
+            if entry and "oxAuthClaimName" not in entry.attrs:
+                entry.attrs["oxAuthClaimName"] = "user_permission"
+                self.backend.modify_entry(entry.id, entry.attrs, **{"bucket": bucket_prefix})
+
+        def modify_imap_data():
+            key = "inum=42E1,ou=attributes,o=gluu"
+
+            if self.backend_type != "ldap":
+                key = get_key_from(key)
+
+            bucket_prefix = os.environ.get("GLUU_COUCHBASE_BUCKET_PREFIX", "gluu")
+            entry = self.backend.get_entry(key, **{"bucket": bucket_prefix})
+
+            if entry and entry.attrs["gluuAttributeType"] == "imapdata":
+                entry.attrs["gluuAttributeType"] = "json"
+                self.backend.modify_entry(entry.id, entry.attrs, **{"bucket": bucket_prefix})
+
+        modify_gluu_permission()
+        modify_imap_data()
 
     def add_new_entries(self):
         ctx = {}
