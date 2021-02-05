@@ -3,5 +3,5 @@
  https://www.apache.org/licenses/LICENSE-2.0
  This is only used by Github actions: release.yaml workflow.
 """
-__version__ = "4.2.2_02"
-__previous_version__ = "4.2.2_01"
+__version__ = "4.2.3_01"
+__previous_version__ = "4.2.2_02"
