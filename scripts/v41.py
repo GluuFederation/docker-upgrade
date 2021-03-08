@@ -3,13 +3,16 @@ import logging
 import os
 from collections import OrderedDict
 
-from backends import CouchbaseBackend
-from backends import LDAPBackend
+import ldap3
+
+from persistence import CouchbaseBackend
+from persistence import LDAPBackend
+from persistence import get_key_from
 
 logger = logging.getLogger("v41")
 
 
-class Upgrade41(object):
+class Upgrade41:
     def __init__(self, manager):
         self.manager = manager
         self.version = "4.1"
@@ -32,23 +35,21 @@ class Upgrade41(object):
             self.backend = CouchbaseBackend(self.manager)
 
     def modify_oxauth_config(self):
-        if self.backend_type == "ldap":
-            key = "ou=oxauth,ou=configuration,o=gluu"
-            kwargs = {}
-        else:
-            key = "configuration_oxauth"
-            kwargs = {"bucket": "gluu"}
+        key = "ou=oxauth,ou=configuration,o=gluu"
+        if self.backend_type != "ldap":
+            key = get_key_from(key)
 
-        entry = self.backend.get_entry(key, **kwargs)
+        bucket_prefix = os.environ.get("GLUU_COUCHBASE_BUCKET_PREFIX", "gluu")
+        entry = self.backend.get_entry(key, **{"bucket": bucket_prefix})
 
         if not entry:
             return
 
         should_upgrade = False
 
-        if self.backend_type == "ldap":
-            dynamic_conf = json.loads(entry.attrs["oxAuthConfDynamic"][0])
-        else:
+        try:
+            dynamic_conf = json.loads(entry.attrs["oxAuthConfDynamic"])
+        except TypeError:
             dynamic_conf = entry.attrs["oxAuthConfDynamic"]
 
         for method in ("tls_client_auth", "self_signed_tls_client_auth"):
@@ -70,34 +71,33 @@ class Upgrade41(object):
 
         if self.backend_type == "ldap":
             dynamic_conf = json.dumps(dynamic_conf)
-            ox_rev = str(int(entry.attrs["oxRevision"][0]) + 1)
-        else:
-            ox_rev = entry.attrs["oxRevision"] + 1
+
+        ox_rev = entry.attrs["oxRevision"] + 1
 
         self.backend.modify_entry(
             entry.id,
-            {"oxRevision": ox_rev, "oxAuthConfDynamic": dynamic_conf},
-            **kwargs
+            {
+                "oxRevision": ox_rev,
+                "oxAuthConfDynamic": dynamic_conf,
+            },
+            **{"bucket": bucket_prefix}
         )
 
     def modify_oxtrust_config(self):
-        if self.backend_type == "ldap":
-            key = "ou=oxtrust,ou=configuration,o=gluu"
-            kwargs = {}
-        else:
-            key = "configuration_oxtrust"
-            kwargs = {"bucket": "gluu"}
+        key = "ou=oxtrust,ou=configuration,o=gluu"
+        if self.backend_type != "ldap":
+            key = get_key_from(key)
 
-        entry = self.backend.get_entry(key, **kwargs)
+        bucket_prefix = os.environ.get("GLUU_COUCHBASE_BUCKET_PREFIX", "gluu")
+        entry = self.backend.get_entry(key, **{"bucket": bucket_prefix})
 
         if not entry:
             return
 
         should_upgrade = False
-        if self.backend_type == "ldap":
-            key = "ou=oxtrust,ou=configuration,o=gluu"
-            app_conf = json.loads(entry.attrs["oxTrustConfApplication"][0])
-        else:
+        try:
+            app_conf = json.loads(entry.attrs["oxTrustConfApplication"])
+        except TypeError:
             app_conf = entry.attrs["oxTrustConfApplication"]
 
         if "useLocalCache" not in app_conf:
@@ -109,72 +109,79 @@ class Upgrade41(object):
 
         if self.backend_type == "ldap":
             app_conf = json.dumps(app_conf)
-            ox_rev = str(int(entry.attrs["oxRevision"][0]) + 1)
-        else:
-            ox_rev = entry.attrs["oxRevision"] + 1
+
+        ox_rev = entry.attrs["oxRevision"] + 1
 
         self.backend.modify_entry(
             entry.id,
-            {"oxRevision": ox_rev, "oxTrustConfApplication": app_conf},
-            **kwargs
+            {
+                "oxRevision": ox_rev,
+                "oxTrustConfApplication": app_conf,
+            },
+            **{"bucket": bucket_prefix}
         )
 
     def modify_clients(self):
-        if self.backend_type == "ldap":
-            key = "o=gluu"
-            filter_ = "(objectClass=oxAuthClient)"
-            kwargs = {}
-        else:
+        key = "o=gluu"
+        filter_ = "(objectClass=oxAuthClient)"
+
+        if self.backend_type != "ldap":
             key = ""
             filter_ = "objectClass='oxAuthClient'"
-            kwargs = {"bucket": "gluu"}
 
-        entries = self.backend.all(key, filter_, **kwargs)
+        bucket_prefix = os.environ.get("GLUU_COUCHBASE_BUCKET_PREFIX", "gluu")
+        entries = self.backend.all(key, filter_, **{"bucket": bucket_prefix})
 
         for e in entries:
             if "oxAuthClientSecretExpiresAt" not in e.attrs:
                 continue
 
-            self.backend.modify_entry(
-                e.id,
-                {"oxAuthExpiration": e.attrs["oxAuthClientSecretExpiresAt"]},
-                **kwargs
-            )
+            try:
+                self.backend.modify_entry(
+                    e.id,
+                    {"oxAuthExpiration": e.attrs["oxAuthClientSecretExpiresAt"]},
+                    **{"bucket": bucket_prefix}
+                )
+            except ldap3.core.exceptions.LDAPAttributeError:
+                pass
 
     def update_couchbase_indexes(self):
-        def get_bucket_mappings():
+        bucket_prefix = os.environ.get("GLUU_COUCHBASE_BUCKET_PREFIX", "gluu")
+
+        def get_bucket_mappings(bucket_prefix):
             bucket_mappings = OrderedDict({
                 "default": {
-                    "bucket": "gluu",
+                    "bucket": bucket_prefix,
                 },
                 "user": {
-                    "bucket": "gluu_user",
+                    "bucket": f"{bucket_prefix}_user",
                 },
                 "site": {
-                    "bucket": "gluu_site",
+                    "bucket": f"{bucket_prefix}_site",
                 },
                 "token": {
-                    "bucket": "gluu_token",
+                    "bucket": f"{bucket_prefix}_token",
                 },
                 "cache": {
-                    "bucket": "gluu_cache",
+                    "bucket": f"{bucket_prefix}_cache",
                 },
             })
 
             persistence_type = os.environ.get("GLUU_PERSISTENCE_TYPE", "ldap")
             ldap_mapping = os.environ.get("GLUU_PERSISTENCE_LDAP_MAPPING", "default")
 
-            if persistence_type != "couchbase":
+            if persistence_type == "hybrid":
                 bucket_mappings = OrderedDict({
                     name: mapping for name, mapping in bucket_mappings.items()
                     if name != ldap_mapping
                 })
             return bucket_mappings
 
-        buckets = [mapping["bucket"] for _, mapping in get_bucket_mappings().items()]
+        buckets = [mapping["bucket"] for _, mapping in get_bucket_mappings(bucket_prefix).items()]
 
         with open("/app/templates/v4.1/couchbase_index.json") as f:
-            indexes = json.loads(f.read())
+            txt = f.read().replace("!bucket_prefix!", bucket_prefix)
+            indexes = json.loads(txt)
 
         for bucket in buckets:
             if bucket not in indexes:
@@ -232,39 +239,15 @@ class Upgrade41(object):
                         error = req.json()["errors"][0]
                         if error["code"] in (4300, 5000):
                             continue
-                        logger.warn("Failed to execute query, reason={}".format(error["msg"]))
-
-    def run_upgrade(self):
-        logger.info("Updating oxAuth config in persistence.")
-        self.modify_oxauth_config()
-
-        logger.info("Updating oxTrust config in persistence.")
-        self.modify_oxtrust_config()
-
-        logger.info("Updating clients in persistence.")
-        self.modify_clients()
-
-        logger.info("Updating base config in persistence.")
-        self.modify_config()
-        self.add_document_store()
-
-        if self.backend_type == "couchbase":
-            logger.info("Updating Couchbase indexes.")
-            self.update_couchbase_indexes()
-
-        logger.info("Updating attributes in persistence.")
-        self.modify_picture_attribute()
-        return True
+                        logger.warning("Failed to execute query, reason={}".format(error["msg"]))
 
     def modify_config(self):
-        if self.backend_type == "ldap":
-            key = "ou=configuration,o=gluu"
-            kwargs = {"delete_attr": True}
-        else:
-            key = "configuration"
-            kwargs = {"bucket": "gluu", "delete_attr": True}
+        key = "ou=configuration,o=gluu"
+        if self.backend_type != "ldap":
+            key = get_key_from(key)
 
-        entry = self.backend.get_entry(key, **kwargs)
+        bucket_prefix = os.environ.get("GLUU_COUCHBASE_BUCKET_PREFIX", "gluu")
+        entry = self.backend.get_entry(key, **{"bucket": bucket_prefix})
 
         if not entry:
             return
@@ -295,18 +278,16 @@ class Upgrade41(object):
         self.backend.modify_entry(
             entry.id,
             attrs,
-            **kwargs
+            **{"bucket": bucket_prefix, "delete_attr": True}
         )
 
     def add_document_store(self):
-        if self.backend_type == "ldap":
-            key = "ou=configuration,o=gluu"
-            kwargs = {}
-        else:
-            key = "configuration"
-            kwargs = {"bucket": "gluu"}
+        key = "ou=configuration,o=gluu"
+        if self.backend_type != "ldap":
+            key = get_key_from(key)
 
-        entry = self.backend.get_entry(key, **kwargs)
+        bucket_prefix = os.environ.get("GLUU_COUCHBASE_BUCKET_PREFIX", "gluu")
+        entry = self.backend.get_entry(key, **{"bucket": bucket_prefix})
 
         if not entry:
             return
@@ -335,20 +316,18 @@ class Upgrade41(object):
         modified, err = self.backend.modify_entry(
             entry.id,
             {"oxDocumentStoreConfiguration": doc_config},
-            **kwargs
+            **{"bucket": bucket_prefix}
         )
         if not modified:
-            logger.warn("Unable to modify entry; reason={}".format(err))
+            logger.warning("Unable to modify entry; reason={}".format(err))
 
     def modify_picture_attribute(self):
-        if self.backend_type == "ldap":
-            key = "inum=EC3A,ou=attributes,o=gluu"
-            kwargs = {}
-        else:
-            key = "attributes_EC3A"
-            kwargs = {"bucket": "gluu"}
+        key = "inum=EC3A,ou=attributes,o=gluu"
+        if self.backend_type != "ldap":
+            key = get_key_from(key)
 
-        entry = self.backend.get_entry(key, **kwargs)
+        bucket_prefix = os.environ.get("GLUU_COUCHBASE_BUCKET_PREFIX", "gluu")
+        entry = self.backend.get_entry(key, **{"bucket": bucket_prefix})
 
         if not entry:
             return
@@ -365,5 +344,27 @@ class Upgrade41(object):
         self.backend.modify_entry(
             entry.id,
             {"gluuAttributeType": entry.attrs["gluuAttributeType"]},
-            **kwargs
+            **{"bucket": bucket_prefix}
         )
+
+    def run_upgrade(self):
+        logger.info("Updating oxAuth config in persistence.")
+        self.modify_oxauth_config()
+
+        logger.info("Updating oxTrust config in persistence.")
+        self.modify_oxtrust_config()
+
+        logger.info("Updating clients in persistence.")
+        self.modify_clients()
+
+        logger.info("Updating base config in persistence.")
+        self.modify_config()
+        self.add_document_store()
+
+        if self.backend_type == "couchbase":
+            logger.info("Updating Couchbase indexes.")
+            self.update_couchbase_indexes()
+
+        logger.info("Updating attributes in persistence.")
+        self.modify_picture_attribute()
+        return True

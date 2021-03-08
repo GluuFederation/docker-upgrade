@@ -10,13 +10,16 @@ from pygluu.containerlib import wait_for
 from settings import LOGGING_CONFIG
 from v41 import Upgrade41
 from v42 import Upgrade42
+from v43 import Upgrade43
 
 logging.config.dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger("entrypoint")
 
 SUPPORTED_VERSIONS = [
+    "4.0",
     "4.1",
     "4.2",
+    "4.3",
 ]
 
 # current version is the latest supported version
@@ -25,6 +28,7 @@ CURRENT_VERSION = SUPPORTED_VERSIONS[-1]
 UPGRADER_CLASSES = {
     "4.1": Upgrade41,
     "4.2": Upgrade42,
+    "4.3": Upgrade43,
 }
 
 
@@ -35,30 +39,23 @@ def main():
     args = parser.parse_args()
 
     if args.source not in SUPPORTED_VERSIONS:
-        logger.error("Unsupported source version {}".format(args.source))
+        logger.error(f"Unsupported source version {args.source}")
         sys.exit(1)
-
-    # backward-compat
-    if args.target == "4.0.0":
-        args.target = "4.0"
 
     if args.target not in SUPPORTED_VERSIONS:
-        logger.error("Unsupported target version {}".format(args.target))
+        logger.error(f"Unsupported target version {args.target}")
         sys.exit(1)
 
-    if args.target < args.source:
-        logger.error("Upgrading from {} to {} is not allowed".format(args.source, args.target))
+    if args.target <= args.source:
+        logger.error(f"Upgrading from {args.source} (source) to {args.target} (target) is not allowed; target must not be less than equal source")
         sys.exit(1)
 
-    if args.source == args.target:
-        steps = [args.target]
-    else:
-        # get all upgrader classes required by the process
-        steps = itertools.islice(
-            SUPPORTED_VERSIONS,
-            SUPPORTED_VERSIONS.index(args.source) + 1,
-            SUPPORTED_VERSIONS.index(args.target) + 1,
-        )
+    # get all upgrader classes required by the process
+    steps = itertools.islice(
+        SUPPORTED_VERSIONS,
+        SUPPORTED_VERSIONS.index(args.source) + 1,
+        SUPPORTED_VERSIONS.index(args.target) + 1,
+    )
 
     upgrader_classes = [UPGRADER_CLASSES.get(step) for step in steps]
 

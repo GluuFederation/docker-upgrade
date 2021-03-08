@@ -9,7 +9,7 @@ from ldap3 import Connection
 from ldap3 import MODIFY_DELETE
 from ldap3 import MODIFY_REPLACE
 from ldap3 import Server
-# from ldap3 import SUBTREE
+from ldap3 import SUBTREE
 # from ldap3.utils.dn import safe_dn
 # from ldap3.utils.dn import to_dn
 
@@ -220,6 +220,31 @@ class LDAPBackend:
             conn.modify(key, attrs)
             return bool(conn.result["description"] == "success"), conn.result["message"]
 
+    def all(self, key="", filter_="", attrs=None, **kwargs):  # noqa: A003
+        def format_attrs(attrs):
+            _attrs = {}
+            for k, v in attrs.items():
+                if len(v) < 2:
+                    v = v[0]
+                _attrs[k] = v
+            return _attrs
+
+        key = key or "o=gluu"
+
+        attrs = None or ["*"]
+        filter_ = filter_ or "(objectClass=*)"
+
+        with self.conn as conn:
+            conn.search(
+                search_base=key,
+                search_filter=filter_,
+                search_scope=SUBTREE,
+                attributes=attrs,
+            )
+
+            for entry in conn.entries:
+                yield Entry(entry.entry_dn, format_attrs(entry.entry_attributes_as_dict))
+
 
 class CouchbaseBackend:
     def __init__(self, manager):
@@ -290,3 +315,14 @@ class CouchbaseBackend:
             status = False
             message = req.text or req.reason
         return status, message
+
+    def all(self, key="", filter_="", attrs=None, **kwargs):  # noqa: A003
+        bucket = kwargs.get("bucket")
+
+        req = self.client.exec_query(
+            "SELECT META().id, {0}.* FROM {0} WHERE {1}".format(bucket, filter_)
+        )
+        if req.ok:
+            for entry in req.json()["results"]:
+                id_ = entry.pop("id")
+                yield Entry(id_, entry)

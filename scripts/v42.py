@@ -5,45 +5,18 @@ from collections import OrderedDict
 
 from ldif3 import LDIFParser
 
-from pygluu.containerlib.utils import (
-    generate_base64_contents,
-    safe_render,
-)
+from pygluu.containerlib.utils import generate_base64_contents
 
-from persistence import (
-    CouchbaseBackend,
-    LDAPBackend,
-    get_key_from,
-    AttrProcessor,
-    transform_entry,
-)
+from persistence import CouchbaseBackend
+from persistence import LDAPBackend
+from persistence import get_key_from
+from persistence import AttrProcessor
+from persistence import transform_entry
+
+from utils import merge_extension_ctx
+from utils import render_ldif
 
 logger = logging.getLogger("v42")
-
-
-def render_ldif(src, dst, ctx):
-    with open(src) as f:
-        txt = f.read()
-
-    with open(dst, "w") as f:
-        f.write(safe_render(txt, ctx))
-
-
-def merge_extension_ctx(ctx):
-    basedir = "/app/static/v4.2/extension"
-
-    for ext_type in os.listdir(basedir):
-        ext_type_dir = os.path.join(basedir, ext_type)
-
-        for fname in os.listdir(ext_type_dir):
-            filepath = os.path.join(ext_type_dir, fname)
-            ext_name = "{}_{}".format(
-                ext_type, os.path.splitext(fname)[0].lower()
-            )
-
-            with open(filepath) as fd:
-                ctx[ext_name] = generate_base64_contents(fd.read())
-    return ctx
 
 
 def merge_fido2_ctx(ctx):
@@ -114,7 +87,10 @@ class Upgrade42:
 
     def add_new_entries(self):
         ctx = {}
-        ctx = merge_extension_ctx(ctx)
+        ctx = merge_extension_ctx(
+            ctx,
+            basedir="/app/static/v4.2/extension",
+        )
 
         ctx["hostname"] = self.manager.config.get("hostname")
         ctx["fido2ConfigFolder"] = self.manager.config.get("fido2ConfigFolder")
@@ -132,18 +108,20 @@ class Upgrade42:
         )
 
         bucket_prefix = os.environ.get("GLUU_COUCHBASE_BUCKET_PREFIX", "gluu")
-        parser = LDIFParser(open(dst, "rb"))
-        for dn, entry in parser.parse():
-            if self.backend_type != "ldap":
-                if len(entry) <= 2:
-                    continue
 
-                entry["dn"] = [dn]
-                entry = transform_entry(entry, attr_processor)
-                dn = get_key_from(dn)
+        with open(dst, "rb") as fd:
+            parser = LDIFParser(fd)
+            for dn, entry in parser.parse():
+                if self.backend_type != "ldap":
+                    if len(entry) <= 2:
+                        continue
 
-            # save to backend
-            self.backend.add_entry(dn, entry, **{"bucket": bucket_prefix})
+                    entry["dn"] = [dn]
+                    entry = transform_entry(entry, attr_processor)
+                    dn = get_key_from(dn)
+
+                # save to backend
+                self.backend.add_entry(dn, entry, **{"bucket": bucket_prefix})
 
     def modify_oxauth_config(self):
         key = "ou=oxauth,ou=configuration,o=gluu"

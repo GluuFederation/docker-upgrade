@@ -1,5 +1,5 @@
 {
-  "gluu_user": {
+  "!bucket_prefix!_user": {
     "attributes": [
       ["oxStatus"],
       ["oxApplication"],
@@ -13,7 +13,7 @@
     ]
   },
 
-  "gluu": {
+  "!bucket_prefix!": {
     "attributes": [
        ["oxAuthUmaScope"]
     ],
