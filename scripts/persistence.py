@@ -4,21 +4,16 @@ import json
 import os
 from collections import namedtuple
 
-from ldap3 import BASE
-from ldap3 import Connection
-from ldap3 import MODIFY_DELETE
-from ldap3 import MODIFY_REPLACE
-from ldap3 import Server
-from ldap3 import SUBTREE
 # from ldap3.utils.dn import safe_dn
 # from ldap3.utils.dn import to_dn
 
-from pygluu.containerlib.utils import decode_text
+# from pygluu.containerlib.utils import decode_text
 from pygluu.containerlib.persistence.couchbase import CouchbaseClient as _CBClient
 from pygluu.containerlib.persistence.couchbase import get_couchbase_password
 from pygluu.containerlib.persistence.couchbase import get_couchbase_user
 from pygluu.containerlib.persistence.couchbase import get_couchbase_superuser_password
 from pygluu.containerlib.persistence.couchbase import get_couchbase_superuser
+from pygluu.containerlib.persistence.ldap import LdapClient
 
 Entry = namedtuple("Entry", ["id", "attrs"])
 
@@ -157,15 +152,7 @@ def get_key_from(dn):
 
 class LDAPBackend:
     def __init__(self, manager):
-        url = os.environ.get("GLUU_LDAP_URL", "localhost:1636")
-        user = manager.config.get("ldap_binddn")
-        passwd = decode_text(
-            manager.secret.get("encoded_ox_ldap_pw"),
-            manager.secret.get("encoded_salt"),
-        )
-
-        server = Server(url, port=1636, use_ssl=True)
-        self.conn = Connection(server, user, passwd)
+        self.client = LdapClient(manager)
         self.manager = manager
 
     def get_entry(self, key, filter_="", attrs=None, **kwargs):
@@ -177,48 +164,31 @@ class LDAPBackend:
                 _attrs[k] = v
             return _attrs
 
-        attrs = None or ["*"]
         filter_ = filter_ or "(objectClass=*)"
 
-        with self.conn as conn:
-            conn.search(
-                search_base=key,
-                search_filter=filter_,
-                search_scope=BASE,
-                attributes=attrs,
-                size_limit=1,
-            )
-
-            if not conn.entries:
-                return
-
-            entry = conn.entries[0]
-            return Entry(entry.entry_dn, format_attrs(entry.entry_attributes_as_dict))
+        entry = self.client.get(key, filter_=filter_, attributes=attrs)
+        if not entry:
+            return None
+        return Entry(entry.entry_dn, format_attrs(entry.entry_attributes_as_dict))
 
     def add_entry(self, key, attrs=None, **kwargs):
         attrs = attrs or {}
-
-        with self.conn as conn:
-            conn.add(key, attributes=attrs)
-            return bool(conn.result["description"] == "success"), conn.result["message"]
+        return self.client.add(key, attrs)
 
     def modify_entry(self, key, attrs=None, **kwargs):
         attrs = attrs or {}
         del_flag = kwargs.get("delete_attr", False)
 
         if del_flag:
-            mod = MODIFY_DELETE
+            mod = self.client.MODIFY_DELETE
         else:
-            mod = MODIFY_REPLACE
+            mod = self.client.MODIFY_REPLACE
 
         for k, v in attrs.items():
             if not isinstance(v, list):
                 v = [v]
             attrs[k] = [(mod, v)]
-
-        with self.conn as conn:
-            conn.modify(key, attrs)
-            return bool(conn.result["description"] == "success"), conn.result["message"]
+        return self.client.modify(key, attrs)
 
     def all(self, key="", filter_="", attrs=None, **kwargs):  # noqa: A003
         def format_attrs(attrs):
@@ -230,20 +200,11 @@ class LDAPBackend:
             return _attrs
 
         key = key or "o=gluu"
-
-        attrs = None or ["*"]
         filter_ = filter_ or "(objectClass=*)"
 
-        with self.conn as conn:
-            conn.search(
-                search_base=key,
-                search_filter=filter_,
-                search_scope=SUBTREE,
-                attributes=attrs,
-            )
-
-            for entry in conn.entries:
-                yield Entry(entry.entry_dn, format_attrs(entry.entry_attributes_as_dict))
+        entries = self.client.search(key, filter_=filter_, attributes=attrs)
+        for entry in entries:
+            yield Entry(entry.entry_dn, format_attrs(entry.entry_attributes_as_dict))
 
 
 class CouchbaseBackend:
